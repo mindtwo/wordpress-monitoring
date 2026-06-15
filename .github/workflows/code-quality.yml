@@ -1,0 +1,51 @@
+name: Code Quality
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  pint:
+    runs-on: ubuntu-latest
+    name: Code style (Pint)
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - name: Drop the monorepo path repository when building standalone
+        run: |
+          if [ ! -d ../base-monitoring ]; then
+            composer config --unset repositories.base-monitoring
+          fi
+
+      - run: composer update --no-interaction --no-progress
+
+      - run: vendor/bin/pint --test
+
+  phpstan:
+    runs-on: ubuntu-latest
+    name: Static analysis (PHPStan level 8)
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - name: Drop the monorepo path repository when building standalone
+        run: |
+          if [ ! -d ../base-monitoring ]; then
+            composer config --unset repositories.base-monitoring
+          fi
+
+      - run: composer update --no-interaction --no-progress
+
+      - run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G

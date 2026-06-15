@@ -1,0 +1,80 @@
+{
+    "name": "mindtwo/wordpress-monitoring",
+    "description": "WordPress plugin of the mindtwo monitoring suite: CMS-specific collectors, WP-Cron push and a signed pull endpoint on top of mindtwo/base-monitoring.",
+    "keywords": [
+        "mindtwo",
+        "wordpress",
+        "wordpress-plugin",
+        "monitoring",
+        "infrastructure",
+        "security"
+    ],
+    "homepage": "https://github.com/mindtwo/wordpress-monitoring",
+    "license": "MIT",
+    "type": "wordpress-plugin",
+    "authors": [
+        {
+            "name": "mindtwo GmbH",
+            "email": "info@mindtwo.de",
+            "homepage": "https://www.mindtwo.de",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": "^8.0",
+        "ext-json": "*",
+        "composer/installers": "^1.0|^2.0",
+        "mindtwo/base-monitoring": "^1.0"
+    },
+    "require-dev": {
+        "laravel/pint": "^1.13",
+        "pestphp/pest": "^2.34|^3.0|^4.0",
+        "php-stubs/wordpress-stubs": "^6.5",
+        "phpstan/phpstan": "^1.11|^2.0",
+        "szepeviktor/phpstan-wordpress": "^1.3|^2.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Mindtwo\\Monitoring\\WordPress\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Mindtwo\\Monitoring\\WordPress\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "analyse": "vendor/bin/phpstan analyse",
+        "format": "vendor/bin/pint",
+        "lint": "vendor/bin/pint --test",
+        "test": "vendor/bin/pest",
+        "check": [
+            "@lint",
+            "@analyse",
+            "@test"
+        ]
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true,
+            "composer/installers": true
+        }
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "1.x-dev"
+        }
+    },
+    "repositories": {
+        "base-monitoring": {
+            "type": "path",
+            "url": "../base-monitoring",
+            "options": {
+                "symlink": true
+            }
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}

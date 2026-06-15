@@ -1,0 +1,10 @@
+includes:
+    - vendor/szepeviktor/phpstan-wordpress/extension.neon
+
+parameters:
+    level: 8
+    paths:
+        - src
+        - wordpress-monitoring.php
+    phpVersion: 80000
+    treatPhpDocTypesAsCertain: false
