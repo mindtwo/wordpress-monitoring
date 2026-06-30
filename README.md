@@ -28,6 +28,45 @@ composer require mindtwo/wordpress-monitoring
 wp plugin activate wordpress-monitoring
 ```
 
+### Custom Composer setups (non-Bedrock)
+
+If your project manages WordPress via Composer (e.g. `johnpbloch/wordpress`) but does **not**
+load the project-root `vendor/autoload.php` globally, the plugin's classes are unavailable when
+WordPress loads the plugin file. The result is silent: no admin menu, no pull endpoint, no push
+— everything is a no-op.
+
+**Fix:** ensure `vendor/autoload.php` is included before plugins run. Two options:
+
+**Option A — `wp-config.php`** (preferred when you control the file):
+
+```php
+require_once dirname(__DIR__) . '/vendor/autoload.php';
+```
+
+**Option B — must-use plugin** (tracked in git, survives redeployments):
+
+Create `public/wp-content/mu-plugins/autoload.php`:
+
+```php
+<?php
+$autoloader = dirname(__DIR__, 3) . '/vendor/autoload.php';
+if (! class_exists(Composer\Autoload\ClassLoader::class) && is_readable($autoloader)) {
+    require $autoloader;
+}
+```
+
+Adjust the `dirname` depth to match your directory layout (`mu-plugins/` → `wp-content/` →
+`public/` → project root = depth 3).
+
+After loading the autoloader, **flush the rewrite rules once** so the pull endpoint is
+registered. Either:
+
+```bash
+wp rewrite flush --hard
+```
+
+or go to **Settings → Permalinks → Save Changes** in WP Admin.
+
 ### Configuration
 
 Preferred: constants in `wp-config.php` (or environment variables) so secrets never live in
