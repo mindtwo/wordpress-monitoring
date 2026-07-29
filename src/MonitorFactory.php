@@ -77,7 +77,13 @@ final class MonitorFactory
         $absPath = rtrim($absPath, '/');
 
         foreach ([$absPath, dirname($absPath), dirname($absPath, 2)] as $candidate) {
-            if ($candidate !== '' && is_file($candidate.'/composer.json')) {
+            if ($candidate === '') {
+                continue;
+            }
+
+            // Either marker is enough: deploy artifacts sometimes ship only one
+            // of the two, and the audit collector needs the lock file.
+            if (is_file($candidate.'/composer.json') || is_file($candidate.'/composer.lock')) {
                 return $candidate;
             }
         }

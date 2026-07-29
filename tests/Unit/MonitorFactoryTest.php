@@ -54,6 +54,24 @@ test('the project root walks up from ABSPATH to find the composer manifest', fun
     rmdir($root);
 });
 
+test('a composer.lock alone identifies the project root', function () {
+    // Deploy artifacts that ship the lock file without composer.json still have
+    // to be found — composer_audit only needs the lock.
+    $root = sys_get_temp_dir().'/m2-wp-'.uniqid();
+    mkdir($root.'/web/wp', 0755, true);
+    file_put_contents($root.'/composer.lock', '{}');
+
+    $wordPress = fakeWordPress();
+    $wordPress->absPath = $root.'/web/wp/';
+
+    expect(MonitorFactory::projectRoot($wordPress, new WordPressConfigurationRepository($wordPress)))->toBe($root);
+
+    unlink($root.'/composer.lock');
+    rmdir($root.'/web/wp');
+    rmdir($root.'/web');
+    rmdir($root);
+});
+
 test('an explicitly configured project root wins', function () {
     $wordPress = fakeWordPress();
     $wordPress->options['mindtwo_monitoring_settings']['project_root'] = sys_get_temp_dir();
