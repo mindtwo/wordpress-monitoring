@@ -29,9 +29,11 @@ final class WordPressCollector extends AbstractCollector
         return 'wordpress';
     }
 
-    public function supported(): bool
+    public function unsupportedReason(): ?string
     {
-        return $this->wordPress->version() !== null;
+        return $this->wordPress->version() !== null
+            ? null
+            : 'The WordPress version is unavailable — is WordPress loaded?';
     }
 
     public function collect(): CollectionResult
@@ -39,7 +41,7 @@ final class WordPressCollector extends AbstractCollector
         $version = $this->wordPress->version();
 
         if ($version === null) {
-            return CollectionResult::unsupported($this->key());
+            return CollectionResult::unsupported($this->key(), $this->unsupportedReason());
         }
 
         return CollectionResult::ok($this->key(), $this->technologyData(

@@ -29,7 +29,9 @@ test('an unknown core version marks the collector unsupported', function () {
     $collector = new WordPressCollector($wordPress);
 
     expect($collector->supported())->toBeFalse()
-        ->and($collector->collect()->status)->toBe('unsupported');
+        ->and($collector->unsupportedReason())->toContain('WordPress version is unavailable')
+        ->and($collector->collect()->status)->toBe('unsupported')
+        ->and($collector->collect()->error)->toContain('WordPress version is unavailable');
 });
 
 test('plugins are listed with activity, versions and updates', function () {
