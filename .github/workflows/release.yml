@@ -5,12 +5,23 @@ on:
     tags: ['v*']
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
+  # A tag goes straight to sites with automatic updates: publish only what
+  # passes the same gates as main.
+  tests:
+    uses: ./.github/workflows/tests.yml
+
+  code-quality:
+    uses: ./.github/workflows/code-quality.yml
+
   zip:
+    needs: [tests, code-quality]
     runs-on: ubuntu-latest
     name: Build and attach plugin ZIP
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@v4
