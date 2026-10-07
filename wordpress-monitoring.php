@@ -6,7 +6,7 @@ declare(strict_types=1);
  * Plugin Name:       mindtwo Monitoring
  * Plugin URI:        https://github.com/mindtwo/wordpress-monitoring
  * Description:       Collects infrastructure, package and security-audit data and reports it to the mindtwo monitoring dashboard — signed, scheduled, and pullable via /api/app-monitoring.
- * Version:           1.0.0
+ * Version:           1.1.0
  * Requires at least: 6.0
  * Requires PHP:      8.0
  * Author:            mindtwo GmbH
