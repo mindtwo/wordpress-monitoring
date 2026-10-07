@@ -93,10 +93,6 @@ final class Plugin
                 $updater->flush();
             }
         }, 1);
-
-        add_action('upgrader_process_complete', static function ($upgrader, $hookExtra) use ($updater): void {
-            $updater->onUpgradeComplete(is_array($hookExtra) ? $hookExtra : []);
-        }, 10, 2);
     }
 
     public static function monitor(?WordPressApi $wordPress = null): Monitor

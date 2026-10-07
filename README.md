@@ -165,7 +165,8 @@ composer check    # pint --test + phpstan (level 8, wordpress-stubs) + pest
    dependencies against it, and installed sites read it from the tag before (auto-)updating.
    Both lines must stay plain version numbers (`6.0`, `8.0`); the build fails otherwise, because
    installed sites would never be offered a release whose requirements they cannot read.
-2. Tag and push: `git tag v1.2.0 && git push origin v1.2.0`.
+2. Tag and push: `git tag v1.2.0 && git push origin v1.2.0`. Create releases this way, not in the
+   GitHub UI — a release published there is "latest" without its ZIP until the workflow finished.
 
 The [release workflow](.github/workflows/release.yml) builds the ZIP with
 [`bin/build-zip.sh`](bin/build-zip.sh) and attaches it to the GitHub release (creating the release

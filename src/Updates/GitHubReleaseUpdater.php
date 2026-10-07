@@ -142,30 +142,6 @@ final class GitHubReleaseUpdater
         return 'https://raw.githubusercontent.com/mindtwo/wordpress-monitoring/'.rawurlencode($tag).'/wordpress-monitoring.php';
     }
 
-    /**
-     * Callback for `upgrader_process_complete`: only an upgrade of this
-     * plugin invalidates the release cache — every flush costs an
-     * unauthenticated GitHub request on IPs shared by many sites.
-     *
-     * @param  array<string, mixed>  $hookExtra
-     */
-    public function onUpgradeComplete(array $hookExtra): void
-    {
-        if (($hookExtra['type'] ?? null) !== 'plugin') {
-            return;
-        }
-
-        $plugins = isset($hookExtra['plugins']) && is_array($hookExtra['plugins']) ? $hookExtra['plugins'] : [];
-
-        if (isset($hookExtra['plugin'])) {
-            $plugins[] = $hookExtra['plugin'];
-        }
-
-        if (in_array($this->pluginFile, $plugins, true)) {
-            $this->flush();
-        }
-    }
-
     public function flush(): void
     {
         $this->wordPress->deleteSiteTransient(self::CACHE_TRANSIENT);

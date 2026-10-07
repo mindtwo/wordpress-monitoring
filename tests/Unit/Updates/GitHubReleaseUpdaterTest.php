@@ -333,30 +333,3 @@ test('a tampered or outdated cache entry is discarded and fetched fresh', functi
     ]],
     'outdated shape' => [['version' => '1.2.0', 'package' => 'https://github.com/mindtwo/wordpress-monitoring/releases/download/v1.2.0/wordpress-monitoring-1.2.0.zip']],
 ]);
-
-test('the cache is flushed after this plugin was upgraded', function (array $hookExtra) {
-    $wordPress = new FakeWordPressApi;
-    $wordPress->siteTransients[GitHubReleaseUpdater::CACHE_TRANSIENT] = [[], GitHubReleaseUpdater::FAILURE_CACHE_SECONDS];
-
-    updater($wordPress)->onUpgradeComplete($hookExtra);
-
-    expect($wordPress->siteTransients)->not->toHaveKey(GitHubReleaseUpdater::CACHE_TRANSIENT);
-})->with([
-    'single update' => [['type' => 'plugin', 'action' => 'update', 'plugin' => UPDATER_PLUGIN_FILE]],
-    'bulk update' => [['type' => 'plugin', 'action' => 'update', 'plugins' => ['akismet/akismet.php', UPDATER_PLUGIN_FILE]]],
-]);
-
-test('upgrades of anything else keep the cache', function (array $hookExtra) {
-    // Each flush costs an unauthenticated GitHub request on shared IPs.
-    $wordPress = new FakeWordPressApi;
-    $wordPress->siteTransients[GitHubReleaseUpdater::CACHE_TRANSIENT] = [[], GitHubReleaseUpdater::FAILURE_CACHE_SECONDS];
-
-    updater($wordPress)->onUpgradeComplete($hookExtra);
-
-    expect($wordPress->siteTransients)->toHaveKey(GitHubReleaseUpdater::CACHE_TRANSIENT);
-})->with([
-    'other plugin' => [['type' => 'plugin', 'action' => 'update', 'plugins' => ['akismet/akismet.php']]],
-    'theme' => [['type' => 'theme', 'action' => 'update', 'themes' => ['twentytwentyfive']]],
-    'core' => [['type' => 'core', 'action' => 'update']],
-    'translations' => [['type' => 'translation', 'action' => 'update', 'translations' => []]],
-]);

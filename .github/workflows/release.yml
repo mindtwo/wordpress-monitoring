@@ -28,7 +28,8 @@ jobs:
 
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          # The lowest supported PHP, so the bundle's smoke test runs where it must work.
+          php-version: '8.0'
           coverage: none
 
       - name: Build ZIP
@@ -48,7 +49,9 @@ jobs:
         # the upload, so "latest" never points at a release without the ZIP.
         run: |
           if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            # A draft pre-created by hand would otherwise never become "latest".
             gh release upload "$GITHUB_REF_NAME" "$ZIP" --clobber
+            gh release edit "$GITHUB_REF_NAME" --draft=false
           else
             gh release create "$GITHUB_REF_NAME" "$ZIP" --verify-tag --title "$GITHUB_REF_NAME" --generate-notes
           fi
