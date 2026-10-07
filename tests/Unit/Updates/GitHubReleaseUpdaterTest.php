@@ -81,11 +81,17 @@ test('other plugins sharing the github.com update hostname are left alone', func
         ->and($wordPress->remoteRequests)->toBe([]);
 });
 
-test('no update is offered when the installed version is current or newer', function (string $installed) {
+test('the latest release is reported even when the installed version is current or newer', function (string $installed) {
+    // WordPress compares versions itself and files the entry under no_update.
+    // Returning false instead would hide the auto-update toggle and the
+    // "View details" link whenever the plugin is up to date.
     $wordPress = new FakeWordPressApi;
     releaseResponse($wordPress, 200, githubRelease('v1.2.0'));
 
-    expect(updater($wordPress)->filterUpdate(false, ['Version' => $installed], UPDATER_PLUGIN_FILE))->toBeFalse();
+    $update = updater($wordPress)->filterUpdate(false, ['Version' => $installed], UPDATER_PLUGIN_FILE);
+
+    expect($update)->toBeArray()
+        ->and($update['version'])->toBe('1.2.0');
 })->with(['1.2.0', '1.3.0']);
 
 test('a release without the built zip asset is never offered', function () {

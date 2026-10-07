@@ -42,7 +42,10 @@ final class GitHubReleaseUpdater
     ) {}
 
     /**
-     * Callback for `update_plugins_{hostname}`.
+     * Callback for `update_plugins_{hostname}`. Reports the latest release
+     * regardless of the installed version: WordPress compares the versions
+     * itself and files a current plugin under `no_update`, which is what
+     * enables the auto-update toggle and the "View details" link.
      *
      * @param  array<string, mixed>|false  $update
      * @param  array<string, mixed>  $pluginData
@@ -55,9 +58,8 @@ final class GitHubReleaseUpdater
         }
 
         $release = $this->latestRelease();
-        $installed = isset($pluginData['Version']) && is_string($pluginData['Version']) ? $pluginData['Version'] : '0';
 
-        if ($release === null || version_compare($release['version'], $installed, '<=')) {
+        if ($release === null) {
             return false;
         }
 
