@@ -22,12 +22,22 @@ jobs:
 
       - name: Build ZIP
         id: build
-        run: echo "zip=$(bin/build-zip.sh "$GITHUB_REF_NAME" dist | tail -n 1)" >> "$GITHUB_OUTPUT"
+        # Explicit bash adds -o pipefail; with the plain assignment a failing
+        # build stops the job before any release exists.
+        shell: bash
+        run: |
+          zip="$(bin/build-zip.sh "$GITHUB_REF_NAME" dist | tail -n 1)"
+          echo "zip=$zip" >> "$GITHUB_OUTPUT"
 
-      - name: Attach ZIP to the GitHub release
+      - name: Publish release with ZIP
         env:
           GH_TOKEN: ${{ github.token }}
+          ZIP: ${{ steps.build.outputs.zip }}
+        # Creating the release together with its asset publishes it only after
+        # the upload, so "latest" never points at a release without the ZIP.
         run: |
-          gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1 \
-            || gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --generate-notes
-          gh release upload "$GITHUB_REF_NAME" "${{ steps.build.outputs.zip }}" --clobber
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "$ZIP" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "$ZIP" --verify-tag --title "$GITHUB_REF_NAME" --generate-notes
+          fi
