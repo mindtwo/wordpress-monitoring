@@ -53,6 +53,9 @@ final class FakeWordPressApi implements WordPressApi
     /** @var array<string, array{0: mixed, 1: int}> value + ttl */
     public array $transients = [];
 
+    /** @var array<string, array{0: mixed, 1: int}> value + ttl, network-wide on multisite */
+    public array $siteTransients = [];
+
     /** @var array<string, int> */
     public array $scheduled = [];
 
@@ -161,6 +164,21 @@ final class FakeWordPressApi implements WordPressApi
     public function deleteTransient(string $name): void
     {
         unset($this->transients[$name]);
+    }
+
+    public function siteTransient(string $name)
+    {
+        return $this->siteTransients[$name][0] ?? false;
+    }
+
+    public function setSiteTransient(string $name, $value, int $ttlSeconds): void
+    {
+        $this->siteTransients[$name] = [$value, $ttlSeconds];
+    }
+
+    public function deleteSiteTransient(string $name): void
+    {
+        unset($this->siteTransients[$name]);
     }
 
     public function nextScheduled(string $hook): ?int

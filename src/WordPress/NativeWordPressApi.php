@@ -160,6 +160,25 @@ final class NativeWordPressApi implements WordPressApi
         }
     }
 
+    public function siteTransient(string $name)
+    {
+        return function_exists('get_site_transient') ? get_site_transient($name) : false;
+    }
+
+    public function setSiteTransient(string $name, $value, int $ttlSeconds): void
+    {
+        if (function_exists('set_site_transient')) {
+            set_site_transient($name, $value, $ttlSeconds);
+        }
+    }
+
+    public function deleteSiteTransient(string $name): void
+    {
+        if (function_exists('delete_site_transient')) {
+            delete_site_transient($name);
+        }
+    }
+
     public function nextScheduled(string $hook): ?int
     {
         if (! function_exists('wp_next_scheduled')) {

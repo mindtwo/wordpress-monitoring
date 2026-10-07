@@ -122,7 +122,9 @@ final class GitHubReleaseUpdater
             'download_link' => $release['package'],
             'sections' => [
                 'description' => 'Reports infrastructure, package and security data of this site to the mindtwo monitoring dashboard.',
-                'changelog' => nl2br(htmlspecialchars($release['notes'], ENT_QUOTES, 'UTF-8')),
+                // Release notes are Markdown; link the rendered version instead of parsing it.
+                'changelog' => '<p><a href="'.htmlspecialchars($release['url'], ENT_QUOTES, 'UTF-8').'" target="_blank" rel="noopener noreferrer">Release notes on GitHub</a></p>'
+                    .nl2br(htmlspecialchars($release['notes'], ENT_QUOTES, 'UTF-8')),
             ],
         ];
     }
@@ -132,28 +134,62 @@ final class GitHubReleaseUpdater
         return 'https://raw.githubusercontent.com/mindtwo/wordpress-monitoring/'.rawurlencode($tag).'/wordpress-monitoring.php';
     }
 
+    /**
+     * Callback for `upgrader_process_complete`: only an upgrade of this
+     * plugin invalidates the release cache — every flush costs an
+     * unauthenticated GitHub request on IPs shared by many sites.
+     *
+     * @param  array<string, mixed>  $hookExtra
+     */
+    public function onUpgradeComplete(array $hookExtra): void
+    {
+        if (($hookExtra['type'] ?? null) !== 'plugin') {
+            return;
+        }
+
+        $plugins = isset($hookExtra['plugins']) && is_array($hookExtra['plugins']) ? $hookExtra['plugins'] : [];
+
+        if (isset($hookExtra['plugin'])) {
+            $plugins[] = $hookExtra['plugin'];
+        }
+
+        if (in_array($this->pluginFile, $plugins, true)) {
+            $this->flush();
+        }
+    }
+
     public function flush(): void
     {
-        $this->wordPress->deleteTransient(self::CACHE_TRANSIENT);
+        $this->wordPress->deleteSiteTransient(self::CACHE_TRANSIENT);
     }
 
     /**
-     * The latest usable release, cached. Failures are cached as an empty
-     * array for a shorter time so a rate-limited host is not hammered.
+     * The latest usable release, cached network-wide (like core's
+     * update_plugins). Failures are cached as an empty array for a shorter
+     * time so a rate-limited host is not hammered; an invalid entry is
+     * refetched instead of blocking updates until it expires.
      *
      * @return array{tag: string, version: string, url: string, package: string, published_at: string, notes: string, requires: string|null, requires_php: string|null}|null
      */
     private function latestRelease(): ?array
     {
-        $cached = $this->wordPress->transient(self::CACHE_TRANSIENT);
+        $cached = $this->wordPress->siteTransient(self::CACHE_TRANSIENT);
+
+        if ($cached === []) {
+            return null;
+        }
 
         if (is_array($cached)) {
-            return $cached === [] ? null : $this->release($cached);
+            $release = $this->release($cached);
+
+            if ($release !== null) {
+                return $release;
+            }
         }
 
         $release = $this->fetch();
 
-        $this->wordPress->setTransient(
+        $this->wordPress->setSiteTransient(
             self::CACHE_TRANSIENT,
             $release ?? [],
             $release !== null ? self::CACHE_SECONDS : self::FAILURE_CACHE_SECONDS
@@ -179,12 +215,12 @@ final class GitHubReleaseUpdater
         $requirements = $this->fetchRequirements($release['tag']);
 
         if ($requirements === null) {
-            $this->wordPress->setTransient(self::CACHE_TRANSIENT, [], self::FAILURE_CACHE_SECONDS);
+            $this->wordPress->setSiteTransient(self::CACHE_TRANSIENT, [], self::FAILURE_CACHE_SECONDS);
 
             return null;
         }
 
-        $this->wordPress->setTransient(self::CACHE_TRANSIENT, array_merge($release, $requirements), self::CACHE_SECONDS);
+        $this->wordPress->setSiteTransient(self::CACHE_TRANSIENT, array_merge($release, $requirements), self::CACHE_SECONDS);
 
         return $requirements;
     }

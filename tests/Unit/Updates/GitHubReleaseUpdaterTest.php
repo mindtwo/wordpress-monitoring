@@ -108,7 +108,7 @@ test('a newer release is not offered when its requirements cannot be read', func
     $updater->filterUpdate(false, ['Version' => '1.0.0'], UPDATER_PLUGIN_FILE);
 
     expect(requestsTo($wordPress, GitHubReleaseUpdater::pluginHeaderUrl('v1.2.0')))->toBe(1)
-        ->and($wordPress->transients[GitHubReleaseUpdater::CACHE_TRANSIENT][1])->toBe(GitHubReleaseUpdater::FAILURE_CACHE_SECONDS);
+        ->and($wordPress->siteTransients[GitHubReleaseUpdater::CACHE_TRANSIENT][1])->toBe(GitHubReleaseUpdater::FAILURE_CACHE_SECONDS);
 })->with([
     'not found' => [404, '404: Not Found'],
     'header without requirements' => [200, "<?php\n/**\n * Plugin Name: mindtwo Monitoring\n */\n"],
@@ -198,7 +198,7 @@ test('the release lookup is cached', function () {
 
     expect(requestsTo($wordPress, GitHubReleaseUpdater::RELEASE_API))->toBe(1)
         ->and(requestsTo($wordPress, GitHubReleaseUpdater::pluginHeaderUrl('v1.2.0')))->toBe(1)
-        ->and($wordPress->transients[GitHubReleaseUpdater::CACHE_TRANSIENT][1])->toBe(GitHubReleaseUpdater::CACHE_SECONDS);
+        ->and($wordPress->siteTransients[GitHubReleaseUpdater::CACHE_TRANSIENT][1])->toBe(GitHubReleaseUpdater::CACHE_SECONDS);
 });
 
 test('failed lookups are cached briefly so a rate-limited host is not hammered', function (int $status, mixed $body) {
@@ -212,7 +212,7 @@ test('failed lookups are cached briefly so a rate-limited host is not hammered',
     $updater->filterUpdate(false, ['Version' => '1.0.0'], UPDATER_PLUGIN_FILE);
 
     expect($wordPress->remoteRequests)->toHaveCount(1)
-        ->and($wordPress->transients[GitHubReleaseUpdater::CACHE_TRANSIENT][1])->toBe(GitHubReleaseUpdater::FAILURE_CACHE_SECONDS);
+        ->and($wordPress->siteTransients[GitHubReleaseUpdater::CACHE_TRANSIENT][1])->toBe(GitHubReleaseUpdater::FAILURE_CACHE_SECONDS);
 })->with([
     'rate limited' => [403, ['message' => 'API rate limit exceeded']],
     'no release yet' => [404, ['message' => 'Not Found']],
@@ -223,7 +223,7 @@ test('a transport error is treated like a failed lookup', function () {
     $wordPress = new FakeWordPressApi;
 
     expect(updater($wordPress)->filterUpdate(false, ['Version' => '1.0.0'], UPDATER_PLUGIN_FILE))->toBeFalse()
-        ->and($wordPress->transients[GitHubReleaseUpdater::CACHE_TRANSIENT][1])->toBe(GitHubReleaseUpdater::FAILURE_CACHE_SECONDS);
+        ->and($wordPress->siteTransients[GitHubReleaseUpdater::CACHE_TRANSIENT][1])->toBe(GitHubReleaseUpdater::FAILURE_CACHE_SECONDS);
 });
 
 test('flushing the cache forces a fresh lookup', function () {
@@ -251,6 +251,7 @@ test('the details modal is answered for the own slug only', function () {
         ->and($info->slug)->toBe('wordpress-monitoring')
         ->and($info->version)->toBe('1.2.0')
         ->and($info->download_link)->toEndWith('wordpress-monitoring-1.2.0.zip')
+        ->and($info->sections['changelog'])->toContain('href="https://github.com/mindtwo/wordpress-monitoring/releases/tag/v1.2.0"')
         ->and($info->sections['changelog'])->toContain('&lt;b&gt;support&lt;/b&gt;')
         ->and($info->sections['changelog'])->not->toContain('<b>');
 });
@@ -264,3 +265,72 @@ test('other plugins_api actions pass through untouched', function () {
     expect($result)->toBeFalse()
         ->and($wordPress->remoteRequests)->toBe([]);
 });
+
+test('the cache is a site transient shared by all sites of a network', function () {
+    // Core keeps update_plugins network-wide too; a per-site cache would
+    // multiply GitHub requests and miss the network admin's "Check again".
+    $wordPress = new FakeWordPressApi;
+    releaseResponse($wordPress, 200, githubRelease());
+
+    updater($wordPress)->filterUpdate(false, ['Version' => '1.0.0'], UPDATER_PLUGIN_FILE);
+
+    expect($wordPress->siteTransients)->toHaveKey(GitHubReleaseUpdater::CACHE_TRANSIENT)
+        ->and($wordPress->transients)->not->toHaveKey(GitHubReleaseUpdater::CACHE_TRANSIENT);
+});
+
+test('a cached release is answered without asking github again', function () {
+    $wordPress = new FakeWordPressApi;
+    releaseResponse($wordPress, 200, githubRelease('v1.2.0'));
+
+    $first = updater($wordPress)->filterUpdate(false, ['Version' => '1.0.0'], UPDATER_PLUGIN_FILE);
+    $wordPress->remoteRequests = [];
+    $second = updater($wordPress)->filterUpdate(false, ['Version' => '1.0.0'], UPDATER_PLUGIN_FILE);
+
+    expect($second)->toBe($first)
+        ->and($wordPress->remoteRequests)->toBe([]);
+});
+
+test('a tampered or outdated cache entry is discarded and fetched fresh', function (array $cached) {
+    $wordPress = new FakeWordPressApi;
+    releaseResponse($wordPress, 200, githubRelease('v1.2.0'));
+    $wordPress->siteTransients[GitHubReleaseUpdater::CACHE_TRANSIENT] = [$cached, GitHubReleaseUpdater::CACHE_SECONDS];
+
+    $update = updater($wordPress)->filterUpdate(false, ['Version' => '1.0.0'], UPDATER_PLUGIN_FILE);
+
+    expect($update)->toBeArray()
+        ->and($update['package'])->toBe('https://github.com/mindtwo/wordpress-monitoring/releases/download/v1.2.0/wordpress-monitoring-1.2.0.zip')
+        ->and(requestsTo($wordPress, GitHubReleaseUpdater::RELEASE_API))->toBe(1);
+})->with([
+    'foreign package url' => [[
+        'tag' => 'v9.9.9', 'version' => '9.9.9', 'url' => 'https://evil.example', 'package' => 'https://evil.example/plugin.zip',
+        'published_at' => '', 'notes' => '', 'requires' => '6.0', 'requires_php' => '8.0',
+    ]],
+    'outdated shape' => [['version' => '1.2.0', 'package' => 'https://github.com/mindtwo/wordpress-monitoring/releases/download/v1.2.0/wordpress-monitoring-1.2.0.zip']],
+]);
+
+test('the cache is flushed after this plugin was upgraded', function (array $hookExtra) {
+    $wordPress = new FakeWordPressApi;
+    $wordPress->siteTransients[GitHubReleaseUpdater::CACHE_TRANSIENT] = [[], GitHubReleaseUpdater::FAILURE_CACHE_SECONDS];
+
+    updater($wordPress)->onUpgradeComplete($hookExtra);
+
+    expect($wordPress->siteTransients)->not->toHaveKey(GitHubReleaseUpdater::CACHE_TRANSIENT);
+})->with([
+    'single update' => [['type' => 'plugin', 'action' => 'update', 'plugin' => UPDATER_PLUGIN_FILE]],
+    'bulk update' => [['type' => 'plugin', 'action' => 'update', 'plugins' => ['akismet/akismet.php', UPDATER_PLUGIN_FILE]]],
+]);
+
+test('upgrades of anything else keep the cache', function (array $hookExtra) {
+    // Each flush costs an unauthenticated GitHub request on shared IPs.
+    $wordPress = new FakeWordPressApi;
+    $wordPress->siteTransients[GitHubReleaseUpdater::CACHE_TRANSIENT] = [[], GitHubReleaseUpdater::FAILURE_CACHE_SECONDS];
+
+    updater($wordPress)->onUpgradeComplete($hookExtra);
+
+    expect($wordPress->siteTransients)->toHaveKey(GitHubReleaseUpdater::CACHE_TRANSIENT);
+})->with([
+    'other plugin' => [['type' => 'plugin', 'action' => 'update', 'plugins' => ['akismet/akismet.php']]],
+    'theme' => [['type' => 'theme', 'action' => 'update', 'themes' => ['twentytwentyfive']]],
+    'core' => [['type' => 'core', 'action' => 'update']],
+    'translations' => [['type' => 'translation', 'action' => 'update', 'translations' => []]],
+]);

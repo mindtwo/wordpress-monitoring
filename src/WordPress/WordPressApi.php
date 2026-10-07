@@ -96,6 +96,20 @@ interface WordPressApi
 
     public function deleteTransient(string $name): void;
 
+    /**
+     * Network-wide transient on multisite, a regular transient otherwise.
+     *
+     * @return mixed
+     */
+    public function siteTransient(string $name);
+
+    /**
+     * @param  mixed  $value
+     */
+    public function setSiteTransient(string $name, $value, int $ttlSeconds): void;
+
+    public function deleteSiteTransient(string $name): void;
+
     public function nextScheduled(string $hook): ?int;
 
     public function scheduleEvent(int $timestamp, string $recurrence, string $hook): void;
