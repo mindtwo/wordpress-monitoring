@@ -13,6 +13,11 @@ use Mindtwo\Monitoring\WordPress\WordPress\WordPressApi;
  * wordpress.org. The answer comes from the latest GitHub release and only
  * points at the built `wordpress-monitoring-<version>.zip` asset — the
  * auto-generated source archive lacks vendor/ and must never be installed.
+ *
+ * The minimum WordPress/PHP versions of a newer release are read from the
+ * plugin header of its tag: WordPress' automatic updater trusts the
+ * `requires_php` of this answer, so it must describe the offered release —
+ * a raised minimum would otherwise be auto-installed onto too old a PHP.
  */
 final class GitHubReleaseUpdater
 {
@@ -29,10 +34,6 @@ final class GitHubReleaseUpdater
 
     /** Shared hosting shares the GitHub rate limit across all sites on an IP. */
     public const FAILURE_CACHE_SECONDS = 3600;
-
-    private const REQUIRES_WORDPRESS = '6.0';
-
-    private const REQUIRES_PHP = '8.0';
 
     private const TIMEOUT_SECONDS = 10;
 
@@ -63,14 +64,30 @@ final class GitHubReleaseUpdater
             return false;
         }
 
+        $installed = isset($pluginData['Version']) && is_string($pluginData['Version']) ? $pluginData['Version'] : '0';
+
+        if (version_compare($release['version'], $installed, '>')) {
+            $requirements = $this->requirements($release);
+
+            if ($requirements === null) {
+                return false;
+            }
+        } else {
+            // Not offered as an update: the installed plugin's own header applies.
+            $requirements = [
+                'requires' => isset($pluginData['RequiresWP']) && is_string($pluginData['RequiresWP']) ? $pluginData['RequiresWP'] : '',
+                'requires_php' => isset($pluginData['RequiresPHP']) && is_string($pluginData['RequiresPHP']) ? $pluginData['RequiresPHP'] : '',
+            ];
+        }
+
         return [
             'id' => self::UPDATE_URI,
             'slug' => self::SLUG,
             'version' => $release['version'],
             'url' => $release['url'],
             'package' => $release['package'],
-            'requires' => self::REQUIRES_WORDPRESS,
-            'requires_php' => self::REQUIRES_PHP,
+            'requires' => $requirements['requires'],
+            'requires_php' => $requirements['requires_php'],
         ];
     }
 
@@ -99,8 +116,8 @@ final class GitHubReleaseUpdater
             'version' => $release['version'],
             'author' => '<a href="https://www.mindtwo.de">mindtwo GmbH</a>',
             'homepage' => self::UPDATE_URI,
-            'requires' => self::REQUIRES_WORDPRESS,
-            'requires_php' => self::REQUIRES_PHP,
+            'requires' => $release['requires'],
+            'requires_php' => $release['requires_php'],
             'last_updated' => $release['published_at'],
             'download_link' => $release['package'],
             'sections' => [
@@ -108,6 +125,11 @@ final class GitHubReleaseUpdater
                 'changelog' => nl2br(htmlspecialchars($release['notes'], ENT_QUOTES, 'UTF-8')),
             ],
         ];
+    }
+
+    public static function pluginHeaderUrl(string $tag): string
+    {
+        return 'https://raw.githubusercontent.com/mindtwo/wordpress-monitoring/'.rawurlencode($tag).'/wordpress-monitoring.php';
     }
 
     public function flush(): void
@@ -119,7 +141,7 @@ final class GitHubReleaseUpdater
      * The latest usable release, cached. Failures are cached as an empty
      * array for a shorter time so a rate-limited host is not hammered.
      *
-     * @return array{version: string, url: string, package: string, published_at: string, notes: string}|null
+     * @return array{tag: string, version: string, url: string, package: string, published_at: string, notes: string, requires: string|null, requires_php: string|null}|null
      */
     private function latestRelease(): ?array
     {
@@ -141,7 +163,62 @@ final class GitHubReleaseUpdater
     }
 
     /**
-     * @return array{version: string, url: string, package: string, published_at: string, notes: string}|null
+     * Requirements of the given release, fetched once from its tagged plugin
+     * header and cached with the release. Unreadable requirements fail closed
+     * and are cached like a failed release lookup.
+     *
+     * @param  array{tag: string, version: string, url: string, package: string, published_at: string, notes: string, requires: string|null, requires_php: string|null}  $release
+     * @return array{requires: string, requires_php: string}|null
+     */
+    private function requirements(array $release): ?array
+    {
+        if ($release['requires'] !== null && $release['requires_php'] !== null) {
+            return ['requires' => $release['requires'], 'requires_php' => $release['requires_php']];
+        }
+
+        $requirements = $this->fetchRequirements($release['tag']);
+
+        if ($requirements === null) {
+            $this->wordPress->setTransient(self::CACHE_TRANSIENT, [], self::FAILURE_CACHE_SECONDS);
+
+            return null;
+        }
+
+        $this->wordPress->setTransient(self::CACHE_TRANSIENT, array_merge($release, $requirements), self::CACHE_SECONDS);
+
+        return $requirements;
+    }
+
+    /**
+     * @return array{requires: string, requires_php: string}|null
+     */
+    private function fetchRequirements(string $tag): ?array
+    {
+        $response = $this->wordPress->remoteGet(self::pluginHeaderUrl($tag), [
+            'User-Agent' => 'mindtwo-wordpress-monitoring',
+        ], self::TIMEOUT_SECONDS);
+
+        if ($response === null || $response['status'] !== 200) {
+            return null;
+        }
+
+        // Same window and line format as WordPress' get_file_data().
+        $header = substr($response['body'], 0, 8192);
+        $requirements = [];
+
+        foreach (['requires' => 'Requires at least', 'requires_php' => 'Requires PHP'] as $key => $name) {
+            if (preg_match('/^[ \t\/*#@]*'.preg_quote($name, '/').':[ \t]*(\d+(?:\.\d+)*)[ \t]*$/mi', $header, $match) !== 1) {
+                return null;
+            }
+
+            $requirements[$key] = $match[1];
+        }
+
+        return ['requires' => $requirements['requires'], 'requires_php' => $requirements['requires_php']];
+    }
+
+    /**
+     * @return array{tag: string, version: string, url: string, package: string, published_at: string, notes: string, requires: string|null, requires_php: string|null}|null
      */
     private function fetch(): ?array
     {
@@ -173,11 +250,14 @@ final class GitHubReleaseUpdater
         }
 
         return [
+            'tag' => $data['tag_name'],
             'version' => $version,
             'url' => isset($data['html_url']) && is_string($data['html_url']) ? $data['html_url'] : self::UPDATE_URI.'/releases',
             'package' => $package,
             'published_at' => isset($data['published_at']) && is_string($data['published_at']) ? $data['published_at'] : '',
             'notes' => isset($data['body']) && is_string($data['body']) ? $data['body'] : '',
+            'requires' => null,
+            'requires_php' => null,
         ];
     }
 
@@ -210,26 +290,32 @@ final class GitHubReleaseUpdater
      * in shape after a plugin update).
      *
      * @param  array<mixed>  $cached
-     * @return array{version: string, url: string, package: string, published_at: string, notes: string}|null
+     * @return array{tag: string, version: string, url: string, package: string, published_at: string, notes: string, requires: string|null, requires_php: string|null}|null
      */
     private function release(array $cached): ?array
     {
-        foreach (['version', 'url', 'package', 'published_at', 'notes'] as $key) {
+        foreach (['tag', 'version', 'url', 'package', 'published_at', 'notes'] as $key) {
             if (! isset($cached[$key]) || ! is_string($cached[$key])) {
                 return null;
             }
         }
+
+        $requires = isset($cached['requires']) && is_string($cached['requires']) ? $cached['requires'] : null;
+        $requiresPhp = isset($cached['requires_php']) && is_string($cached['requires_php']) ? $cached['requires_php'] : null;
 
         if (! str_starts_with($cached['package'], self::UPDATE_URI.'/releases/download/')) {
             return null;
         }
 
         return [
+            'tag' => $cached['tag'],
             'version' => $cached['version'],
             'url' => $cached['url'],
             'package' => $cached['package'],
             'published_at' => $cached['published_at'],
             'notes' => $cached['notes'],
+            'requires' => $requires,
+            'requires_php' => $requiresPhp,
         ];
     }
 }

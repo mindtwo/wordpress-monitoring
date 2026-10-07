@@ -15,7 +15,6 @@ version="${1:?usage: bin/build-zip.sh <version> [output-dir]}"
 version="${version#v}"
 root="$(cd "$(dirname "$0")/.." && pwd)"
 out_dir="${2:-$root/dist}"
-lowest_php="8.0.30"
 
 # Resolve before any cd: a relative path would otherwise land in the temporary
 # build directory and be deleted with it.
@@ -27,7 +26,21 @@ if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     exit 1
 fi
 
-header_version="$(git -C "$root" show HEAD:wordpress-monitoring.php | sed -n 's/^ \* Version: *//p' | tr -d '[:space:]')"
+header() {
+    git -C "$root" show HEAD:wordpress-monitoring.php | sed -n "s/^ \* $1: *//p" | tr -d '[:space:]'
+}
+
+header_version="$(header 'Version')"
+
+# The plugin header is the single source for the PHP minimum: WordPress reads
+# it before installing, the updater reads it from the tag, and the bundle is
+# resolved against it here.
+lowest_php="$(header 'Requires PHP')"
+
+if ! [[ "$lowest_php" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
+    echo "Plugin header has no valid 'Requires PHP', got '$lowest_php'." >&2
+    exit 1
+fi
 
 if [ "$header_version" != "$version" ]; then
     # A mismatch would make WordPress offer the same update forever.

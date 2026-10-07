@@ -29,12 +29,35 @@ function githubRelease(string $tag = 'v1.2.0', array $overrides = []): array
     ], $overrides);
 }
 
+/**
+ * Arranges the release API answer and, for a well-formed release, the plugin
+ * header of the tagged version (where the requirements of a newer release
+ * are read from).
+ */
 function releaseResponse(FakeWordPressApi $wordPress, int $status, mixed $body): void
 {
     $wordPress->remoteResponses[GitHubReleaseUpdater::RELEASE_API] = [
         'status' => $status,
         'body' => is_string($body) ? $body : (string) json_encode($body),
     ];
+
+    if (is_array($body) && isset($body['tag_name'])) {
+        pluginHeaderResponse($wordPress, $body['tag_name']);
+    }
+}
+
+function pluginHeaderResponse(FakeWordPressApi $wordPress, string $tag, string $requiresWordPress = '6.0', string $requiresPhp = '8.0', int $status = 200): void
+{
+    $wordPress->remoteResponses[GitHubReleaseUpdater::pluginHeaderUrl($tag)] = [
+        'status' => $status,
+        'body' => "<?php\n\n/**\n * Plugin Name:       mindtwo Monitoring\n * Version:           ".ltrim($tag, 'v')
+            ."\n * Requires at least: {$requiresWordPress}\n * Requires PHP:      {$requiresPhp}\n */\n",
+    ];
+}
+
+function requestsTo(FakeWordPressApi $wordPress, string $url): int
+{
+    return count(array_filter($wordPress->remoteRequests, static fn (array $request): bool => $request['url'] === $url));
 }
 
 function updater(FakeWordPressApi $wordPress): GitHubReleaseUpdater
@@ -59,13 +82,58 @@ test('a newer release with a zip asset is offered as an update', function () {
     ]);
 });
 
+test('a newer release carries the requirements declared in its own plugin header', function () {
+    // WordPress' automatic updater only checks requires_php from this answer,
+    // so it must describe the offered release, not the installed one.
+    $wordPress = new FakeWordPressApi;
+    releaseResponse($wordPress, 200, githubRelease('v1.2.0'));
+    pluginHeaderResponse($wordPress, 'v1.2.0', '6.4', '8.1');
+
+    $update = updater($wordPress)->filterUpdate(false, ['Version' => '1.0.0', 'RequiresWP' => '6.0', 'RequiresPHP' => '8.0'], UPDATER_PLUGIN_FILE);
+
+    expect($update)->toBeArray()
+        ->and($update['requires'])->toBe('6.4')
+        ->and($update['requires_php'])->toBe('8.1');
+});
+
+test('a newer release is not offered when its requirements cannot be read', function (int $status, string $body) {
+    $wordPress = new FakeWordPressApi;
+    releaseResponse($wordPress, 200, githubRelease('v1.2.0'));
+    $wordPress->remoteResponses[GitHubReleaseUpdater::pluginHeaderUrl('v1.2.0')] = ['status' => $status, 'body' => $body];
+
+    $updater = updater($wordPress);
+
+    expect($updater->filterUpdate(false, ['Version' => '1.0.0'], UPDATER_PLUGIN_FILE))->toBeFalse();
+
+    $updater->filterUpdate(false, ['Version' => '1.0.0'], UPDATER_PLUGIN_FILE);
+
+    expect(requestsTo($wordPress, GitHubReleaseUpdater::pluginHeaderUrl('v1.2.0')))->toBe(1)
+        ->and($wordPress->transients[GitHubReleaseUpdater::CACHE_TRANSIENT][1])->toBe(GitHubReleaseUpdater::FAILURE_CACHE_SECONDS);
+})->with([
+    'not found' => [404, '404: Not Found'],
+    'header without requirements' => [200, "<?php\n/**\n * Plugin Name: mindtwo Monitoring\n */\n"],
+    'malformed requirement' => [200, "<?php\n/**\n * Requires at least: 6.0\n * Requires PHP: latest\n */\n"],
+]);
+
+test('a current plugin reports its installed requirements without fetching the header', function () {
+    $wordPress = new FakeWordPressApi;
+    releaseResponse($wordPress, 200, githubRelease('v1.2.0'));
+
+    $update = updater($wordPress)->filterUpdate(false, ['Version' => '1.2.0', 'RequiresWP' => '6.0', 'RequiresPHP' => '8.0'], UPDATER_PLUGIN_FILE);
+
+    expect($update)->toBeArray()
+        ->and($update['requires'])->toBe('6.0')
+        ->and($update['requires_php'])->toBe('8.0')
+        ->and(requestsTo($wordPress, GitHubReleaseUpdater::pluginHeaderUrl('v1.2.0')))->toBe(0);
+});
+
 test('the github api is called with the headers it requires', function () {
     $wordPress = new FakeWordPressApi;
     releaseResponse($wordPress, 200, githubRelease());
 
     updater($wordPress)->filterUpdate(false, ['Version' => '1.0.0'], UPDATER_PLUGIN_FILE);
 
-    expect($wordPress->remoteRequests)->toHaveCount(1)
+    expect(requestsTo($wordPress, GitHubReleaseUpdater::RELEASE_API))->toBe(1)
         ->and($wordPress->remoteRequests[0]['url'])->toBe(GitHubReleaseUpdater::RELEASE_API)
         ->and($wordPress->remoteRequests[0]['headers'])->toHaveKeys(['Accept', 'User-Agent']);
 });
@@ -128,7 +196,8 @@ test('the release lookup is cached', function () {
     $updater->filterUpdate(false, ['Version' => '1.0.0'], UPDATER_PLUGIN_FILE);
     $updater->filterUpdate(false, ['Version' => '1.0.0'], UPDATER_PLUGIN_FILE);
 
-    expect($wordPress->remoteRequests)->toHaveCount(1)
+    expect(requestsTo($wordPress, GitHubReleaseUpdater::RELEASE_API))->toBe(1)
+        ->and(requestsTo($wordPress, GitHubReleaseUpdater::pluginHeaderUrl('v1.2.0')))->toBe(1)
         ->and($wordPress->transients[GitHubReleaseUpdater::CACHE_TRANSIENT][1])->toBe(GitHubReleaseUpdater::CACHE_SECONDS);
 });
 
@@ -166,7 +235,7 @@ test('flushing the cache forces a fresh lookup', function () {
     $updater->flush();
     $updater->filterUpdate(false, ['Version' => '1.0.0'], UPDATER_PLUGIN_FILE);
 
-    expect($wordPress->remoteRequests)->toHaveCount(2);
+    expect(requestsTo($wordPress, GitHubReleaseUpdater::RELEASE_API))->toBe(2);
 });
 
 test('the details modal is answered for the own slug only', function () {
