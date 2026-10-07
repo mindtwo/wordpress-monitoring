@@ -9,13 +9,14 @@ use Mindtwo\Monitoring\WordPress\Admin\SettingsPage;
 use Mindtwo\Monitoring\WordPress\Http\PullEndpoint;
 use Mindtwo\Monitoring\WordPress\Scheduler\PushScheduler;
 use Mindtwo\Monitoring\WordPress\Support\WordPressConfigurationRepository;
+use Mindtwo\Monitoring\WordPress\Updates\GitHubReleaseUpdater;
 use Mindtwo\Monitoring\WordPress\WordPress\NativeWordPressApi;
 use Mindtwo\Monitoring\WordPress\WordPress\WordPressApi;
 
 /**
  * WordPress glue: registers hooks, the rewrite-based pull endpoint, the cron
- * push and the settings page. All decision logic lives in the unit-tested
- * classes this one wires together.
+ * push, the settings page and — for ZIP installs — the GitHub update source.
+ * All decision logic lives in the unit-tested classes this one wires together.
  */
 final class Plugin
 {
@@ -25,11 +26,18 @@ final class Plugin
 
     private static ?Monitor $monitor = null;
 
-    public static function boot(string $pluginFile): void
+    /**
+     * @param  bool  $bundled  Whether the plugin runs on its own vendor/ (release ZIP) instead of a project-wide Composer autoloader.
+     */
+    public static function boot(string $pluginFile, bool $bundled = false): void
     {
         $wordPress = new NativeWordPressApi;
         $config = new WordPressConfigurationRepository($wordPress);
         $scheduler = new PushScheduler($wordPress, static fn () => self::monitor($wordPress)->push(), $config);
+
+        if ($bundled && $config->selfUpdateEnabled()) {
+            self::registerUpdater(new GitHubReleaseUpdater($wordPress, plugin_basename($pluginFile)));
+        }
 
         add_action('init', static function () use ($scheduler): void {
             add_rewrite_rule('^'.self::ROUTE.'/?$', 'index.php?'.self::QUERY_VAR.'=1', 'top');
@@ -68,6 +76,23 @@ final class Plugin
             $scheduler->clear();
             $wordPress->deleteTransient(PullEndpoint::CACHE_TRANSIENT);
             flush_rewrite_rules();
+        });
+    }
+
+    private static function registerUpdater(GitHubReleaseUpdater $updater): void
+    {
+        add_filter('update_plugins_github.com', [$updater, 'filterUpdate'], 10, 3);
+        add_filter('plugins_api', [$updater, 'filterPluginInformation'], 10, 3);
+
+        // "Check again" on Dashboard → Updates should see a fresh release at once.
+        add_action('load-update-core.php', static function () use ($updater): void {
+            if (isset($_GET['force-check'])) {
+                $updater->flush();
+            }
+        });
+
+        add_action('upgrader_process_complete', static function () use ($updater): void {
+            $updater->flush();
         });
     }
 

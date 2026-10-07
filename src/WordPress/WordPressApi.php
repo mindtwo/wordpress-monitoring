@@ -101,4 +101,13 @@ interface WordPressApi
     public function scheduleEvent(int $timestamp, string $recurrence, string $hook): void;
 
     public function clearScheduledHook(string $hook): void;
+
+    /**
+     * An HTTP GET through the WordPress HTTP API. Null on transport errors
+     * (DNS, TLS, timeout); HTTP error statuses are returned, not swallowed.
+     *
+     * @param  array<string, string>  $headers
+     * @return array{status: int, body: string}|null
+     */
+    public function remoteGet(string $url, array $headers, int $timeoutSeconds): ?array;
 }

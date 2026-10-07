@@ -100,3 +100,21 @@ test('disabling the master switch disables route and schedule', function () {
     expect($repository->routeEnabled())->toBeFalse()
         ->and($repository->scheduleEnabled())->toBeFalse();
 });
+
+test('self-update is on by default and can be switched off', function () {
+    $wordPress = new FakeWordPressApi;
+
+    expect((new WordPressConfigurationRepository($wordPress))->selfUpdateEnabled())->toBeTrue();
+
+    $wordPress->constants['MONITORING_SELF_UPDATE'] = false;
+
+    expect((new WordPressConfigurationRepository($wordPress))->selfUpdateEnabled())->toBeFalse();
+});
+
+test('self-update stays available while data collection is disabled', function () {
+    // Pausing monitoring must not cut a site off from security fixes.
+    $wordPress = new FakeWordPressApi;
+    $wordPress->constants['MONITORING_ENABLED'] = false;
+
+    expect((new WordPressConfigurationRepository($wordPress))->selfUpdateEnabled())->toBeTrue();
+});

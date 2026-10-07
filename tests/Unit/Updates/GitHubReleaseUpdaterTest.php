@@ -1,0 +1,191 @@
+<?php
+
+declare(strict_types=1);
+
+use Mindtwo\Monitoring\WordPress\Tests\Fakes\FakeWordPressApi;
+use Mindtwo\Monitoring\WordPress\Updates\GitHubReleaseUpdater;
+
+const UPDATER_PLUGIN_FILE = 'wordpress-monitoring/wordpress-monitoring.php';
+
+/**
+ * @param  array<string, mixed>  $overrides
+ * @return array<string, mixed>
+ */
+function githubRelease(string $tag = 'v1.2.0', array $overrides = []): array
+{
+    $version = ltrim($tag, 'v');
+
+    return array_merge([
+        'tag_name' => $tag,
+        'html_url' => 'https://github.com/mindtwo/wordpress-monitoring/releases/tag/'.$tag,
+        'published_at' => '2026-10-07T10:00:00Z',
+        'body' => "### Added\n- Self-update <b>support</b>",
+        'assets' => [
+            [
+                'name' => 'wordpress-monitoring-'.$version.'.zip',
+                'browser_download_url' => 'https://github.com/mindtwo/wordpress-monitoring/releases/download/'.$tag.'/wordpress-monitoring-'.$version.'.zip',
+            ],
+        ],
+    ], $overrides);
+}
+
+function releaseResponse(FakeWordPressApi $wordPress, int $status, mixed $body): void
+{
+    $wordPress->remoteResponses[GitHubReleaseUpdater::RELEASE_API] = [
+        'status' => $status,
+        'body' => is_string($body) ? $body : (string) json_encode($body),
+    ];
+}
+
+function updater(FakeWordPressApi $wordPress): GitHubReleaseUpdater
+{
+    return new GitHubReleaseUpdater($wordPress, UPDATER_PLUGIN_FILE);
+}
+
+test('a newer release with a zip asset is offered as an update', function () {
+    $wordPress = new FakeWordPressApi;
+    releaseResponse($wordPress, 200, githubRelease('v1.2.0'));
+
+    $update = updater($wordPress)->filterUpdate(false, ['Version' => '1.0.0'], UPDATER_PLUGIN_FILE);
+
+    expect($update)->toBe([
+        'id' => GitHubReleaseUpdater::UPDATE_URI,
+        'slug' => 'wordpress-monitoring',
+        'version' => '1.2.0',
+        'url' => 'https://github.com/mindtwo/wordpress-monitoring/releases/tag/v1.2.0',
+        'package' => 'https://github.com/mindtwo/wordpress-monitoring/releases/download/v1.2.0/wordpress-monitoring-1.2.0.zip',
+        'requires' => '6.0',
+        'requires_php' => '8.0',
+    ]);
+});
+
+test('the github api is called with the headers it requires', function () {
+    $wordPress = new FakeWordPressApi;
+    releaseResponse($wordPress, 200, githubRelease());
+
+    updater($wordPress)->filterUpdate(false, ['Version' => '1.0.0'], UPDATER_PLUGIN_FILE);
+
+    expect($wordPress->remoteRequests)->toHaveCount(1)
+        ->and($wordPress->remoteRequests[0]['url'])->toBe(GitHubReleaseUpdater::RELEASE_API)
+        ->and($wordPress->remoteRequests[0]['headers'])->toHaveKeys(['Accept', 'User-Agent']);
+});
+
+test('other plugins sharing the github.com update hostname are left alone', function () {
+    $wordPress = new FakeWordPressApi;
+    releaseResponse($wordPress, 200, githubRelease());
+
+    $foreign = ['version' => '9.9.9'];
+    $update = updater($wordPress)->filterUpdate($foreign, ['Version' => '1.0.0'], 'other-plugin/other-plugin.php');
+
+    expect($update)->toBe($foreign)
+        ->and($wordPress->remoteRequests)->toBe([]);
+});
+
+test('no update is offered when the installed version is current or newer', function (string $installed) {
+    $wordPress = new FakeWordPressApi;
+    releaseResponse($wordPress, 200, githubRelease('v1.2.0'));
+
+    expect(updater($wordPress)->filterUpdate(false, ['Version' => $installed], UPDATER_PLUGIN_FILE))->toBeFalse();
+})->with(['1.2.0', '1.3.0']);
+
+test('a release without the built zip asset is never offered', function () {
+    // The auto-generated source archive lacks vendor/ and would leave the site
+    // with a silently inactive plugin, so it must not be used as a fallback.
+    $wordPress = new FakeWordPressApi;
+    releaseResponse($wordPress, 200, githubRelease('v1.2.0', ['assets' => []]));
+
+    expect(updater($wordPress)->filterUpdate(false, ['Version' => '1.0.0'], UPDATER_PLUGIN_FILE))->toBeFalse();
+});
+
+test('a download url outside github is rejected', function () {
+    $wordPress = new FakeWordPressApi;
+    releaseResponse($wordPress, 200, githubRelease('v1.2.0', ['assets' => [[
+        'name' => 'wordpress-monitoring-1.2.0.zip',
+        'browser_download_url' => 'https://evil.example/wordpress-monitoring-1.2.0.zip',
+    ]]]));
+
+    expect(updater($wordPress)->filterUpdate(false, ['Version' => '1.0.0'], UPDATER_PLUGIN_FILE))->toBeFalse();
+});
+
+test('tags that are not semantic versions are ignored', function () {
+    $wordPress = new FakeWordPressApi;
+    releaseResponse($wordPress, 200, githubRelease('nightly'));
+
+    expect(updater($wordPress)->filterUpdate(false, ['Version' => '1.0.0'], UPDATER_PLUGIN_FILE))->toBeFalse();
+});
+
+test('the release lookup is cached', function () {
+    $wordPress = new FakeWordPressApi;
+    releaseResponse($wordPress, 200, githubRelease());
+
+    $updater = updater($wordPress);
+    $updater->filterUpdate(false, ['Version' => '1.0.0'], UPDATER_PLUGIN_FILE);
+    $updater->filterUpdate(false, ['Version' => '1.0.0'], UPDATER_PLUGIN_FILE);
+
+    expect($wordPress->remoteRequests)->toHaveCount(1)
+        ->and($wordPress->transients[GitHubReleaseUpdater::CACHE_TRANSIENT][1])->toBe(GitHubReleaseUpdater::CACHE_SECONDS);
+});
+
+test('failed lookups are cached briefly so a rate-limited host is not hammered', function (int $status, mixed $body) {
+    $wordPress = new FakeWordPressApi;
+    releaseResponse($wordPress, $status, $body);
+
+    $updater = updater($wordPress);
+
+    expect($updater->filterUpdate(false, ['Version' => '1.0.0'], UPDATER_PLUGIN_FILE))->toBeFalse();
+
+    $updater->filterUpdate(false, ['Version' => '1.0.0'], UPDATER_PLUGIN_FILE);
+
+    expect($wordPress->remoteRequests)->toHaveCount(1)
+        ->and($wordPress->transients[GitHubReleaseUpdater::CACHE_TRANSIENT][1])->toBe(GitHubReleaseUpdater::FAILURE_CACHE_SECONDS);
+})->with([
+    'rate limited' => [403, ['message' => 'API rate limit exceeded']],
+    'no release yet' => [404, ['message' => 'Not Found']],
+    'malformed json' => [200, '{not json'],
+]);
+
+test('a transport error is treated like a failed lookup', function () {
+    $wordPress = new FakeWordPressApi;
+
+    expect(updater($wordPress)->filterUpdate(false, ['Version' => '1.0.0'], UPDATER_PLUGIN_FILE))->toBeFalse()
+        ->and($wordPress->transients[GitHubReleaseUpdater::CACHE_TRANSIENT][1])->toBe(GitHubReleaseUpdater::FAILURE_CACHE_SECONDS);
+});
+
+test('flushing the cache forces a fresh lookup', function () {
+    $wordPress = new FakeWordPressApi;
+    releaseResponse($wordPress, 200, githubRelease());
+
+    $updater = updater($wordPress);
+    $updater->filterUpdate(false, ['Version' => '1.0.0'], UPDATER_PLUGIN_FILE);
+    $updater->flush();
+    $updater->filterUpdate(false, ['Version' => '1.0.0'], UPDATER_PLUGIN_FILE);
+
+    expect($wordPress->remoteRequests)->toHaveCount(2);
+});
+
+test('the details modal is answered for the own slug only', function () {
+    $wordPress = new FakeWordPressApi;
+    releaseResponse($wordPress, 200, githubRelease('v1.2.0'));
+
+    $updater = updater($wordPress);
+    $foreign = $updater->filterPluginInformation(false, 'plugin_information', (object) ['slug' => 'akismet']);
+    $info = $updater->filterPluginInformation(false, 'plugin_information', (object) ['slug' => 'wordpress-monitoring']);
+
+    expect($foreign)->toBeFalse()
+        ->and($info)->toBeObject()
+        ->and($info->slug)->toBe('wordpress-monitoring')
+        ->and($info->version)->toBe('1.2.0')
+        ->and($info->download_link)->toEndWith('wordpress-monitoring-1.2.0.zip')
+        ->and($info->sections['changelog'])->toContain('&lt;b&gt;support&lt;/b&gt;')
+        ->and($info->sections['changelog'])->not->toContain('<b>');
+});
+
+test('other plugins_api actions pass through untouched', function () {
+    $wordPress = new FakeWordPressApi;
+    releaseResponse($wordPress, 200, githubRelease());
+
+    $result = updater($wordPress)->filterPluginInformation(false, 'query_plugins', (object) ['slug' => 'wordpress-monitoring']);
+
+    expect($result)->toBeFalse()
+        ->and($wordPress->remoteRequests)->toBe([]);
+});

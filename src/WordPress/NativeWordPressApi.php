@@ -185,6 +185,24 @@ final class NativeWordPressApi implements WordPressApi
         }
     }
 
+    public function remoteGet(string $url, array $headers, int $timeoutSeconds): ?array
+    {
+        if (! function_exists('wp_remote_get')) {
+            return null;
+        }
+
+        $response = wp_remote_get($url, ['headers' => $headers, 'timeout' => $timeoutSeconds]);
+
+        if (is_wp_error($response)) {
+            return null;
+        }
+
+        return [
+            'status' => (int) wp_remote_retrieve_response_code($response),
+            'body' => wp_remote_retrieve_body($response),
+        ];
+    }
+
     /**
      * @return array<string, string>
      */

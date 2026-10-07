@@ -62,6 +62,12 @@ final class FakeWordPressApi implements WordPressApi
     /** @var array<int, string> */
     public array $clearedHooks = [];
 
+    /** @var array<string, array{status: int, body: string}> url => response; unknown urls fail like a transport error */
+    public array $remoteResponses = [];
+
+    /** @var array<int, array{url: string, headers: array<string, string>, timeout: int}> */
+    public array $remoteRequests = [];
+
     public function version(): ?string
     {
         return $this->version;
@@ -172,5 +178,12 @@ final class FakeWordPressApi implements WordPressApi
     {
         unset($this->scheduled[$hook]);
         $this->clearedHooks[] = $hook;
+    }
+
+    public function remoteGet(string $url, array $headers, int $timeoutSeconds): ?array
+    {
+        $this->remoteRequests[] = ['url' => $url, 'headers' => $headers, 'timeout' => $timeoutSeconds];
+
+        return $this->remoteResponses[$url] ?? null;
     }
 }
