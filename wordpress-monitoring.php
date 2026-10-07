@@ -22,7 +22,9 @@ if (! defined('ABSPATH')) {
 
 // Composer-managed installs (Bedrock) autoload globally; classic installs
 // bundle the vendor directory inside the plugin (release ZIP). Only the
-// latter update themselves — Composer installs stay with Composer.
+// latter update themselves — Composer installs stay with Composer. The
+// RELEASE marker is written by bin/build-zip.sh only, so a git checkout with
+// its own vendor/ is never mistaken for a ZIP install and overwritten.
 $mindtwoMonitoringBundled = false;
 
 if (! class_exists(Mindtwo\Monitoring\WordPress\Plugin::class)) {
@@ -30,7 +32,7 @@ if (! class_exists(Mindtwo\Monitoring\WordPress\Plugin::class)) {
 
     if (is_readable($autoloader)) {
         require $autoloader;
-        $mindtwoMonitoringBundled = true;
+        $mindtwoMonitoringBundled = is_file(__DIR__.'/RELEASE');
     }
 }
 

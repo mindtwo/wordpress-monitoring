@@ -27,7 +27,7 @@ final class Plugin
     private static ?Monitor $monitor = null;
 
     /**
-     * @param  bool  $bundled  Whether the plugin runs on its own vendor/ (release ZIP) instead of a project-wide Composer autoloader.
+     * @param  bool  $bundled  Whether this is a release ZIP install: own vendor/ plus the RELEASE marker written by bin/build-zip.sh.
      */
     public static function boot(string $pluginFile, bool $bundled = false): void
     {

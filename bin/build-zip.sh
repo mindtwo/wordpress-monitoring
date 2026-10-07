@@ -83,6 +83,10 @@ php -r '
     }
 ' "$version"
 
+# Marks the bundle as a release ZIP install; only then does the plugin update
+# itself (a git checkout with its own vendor/ must never be overwritten).
+printf '%s\n' "$version" > RELEASE
+
 zip_path="$out_dir/wordpress-monitoring-$version.zip"
 rm -f "$zip_path"
 
