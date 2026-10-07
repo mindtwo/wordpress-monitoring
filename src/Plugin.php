@@ -50,13 +50,16 @@ final class Plugin
             return $vars;
         });
 
+        // Priority 0: core's redirect_canonical runs on this action at 10 and,
+        // with permalinks ending in "/", would 301 /api/app-monitoring to the
+        // trailing-slash URL first — the dashboard never follows redirects.
         add_action('template_redirect', static function () use ($wordPress, $config): void {
             if ((string) get_query_var(self::QUERY_VAR) !== '1') {
                 return;
             }
 
             self::respondToPullRequest($wordPress, $config);
-        });
+        }, 0);
 
         add_action(PushScheduler::HOOK, static function () use ($scheduler): void {
             $scheduler->run();
