@@ -119,8 +119,8 @@ blank backend fields fall through. Every setting is overridable:
 
 ## The pull endpoint
 
-`GET /api/app-monitoring` returns the current snapshot as JSON. Requests must be signed
-exactly like every endpoint of the suite:
+`GET /api/app-monitoring` returns the current snapshot as JSON (with or without trailing slash).
+Requests must be signed exactly like every endpoint of the suite:
 
 ```text
 X-Monitoring-Key:       <project key>
