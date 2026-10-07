@@ -115,7 +115,7 @@ blank backend fields fall through. Every setting is overridable:
 | `MONITORING_RATE_LIMIT` | `10` | Pull requests per minute per IP |
 | `MONITORING_SIGNATURE_TOLERANCE` | `300` | Signature timestamp window (seconds) |
 | `MONITORING_PROJECT_ROOT` | auto | Where composer.lock & git live (auto-detects Bedrock layouts) |
-| `self_update` / `MONITORING_SELF_UPDATE` | `true` | Update checks against GitHub releases (ZIP installs only) |
+| `MONITORING_SELF_UPDATE` | `true` | Update checks against GitHub releases (ZIP installs only) |
 
 ## The pull endpoint
 
