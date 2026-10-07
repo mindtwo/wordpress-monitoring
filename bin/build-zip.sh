@@ -17,6 +17,11 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 out_dir="${2:-$root/dist}"
 lowest_php="8.0.30"
 
+# Resolve before any cd: a relative path would otherwise land in the temporary
+# build directory and be deleted with it.
+mkdir -p "$out_dir"
+out_dir="$(cd "$out_dir" && pwd)"
+
 if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     echo "Version must be MAJOR.MINOR.PATCH, got '$version'." >&2
     exit 1
@@ -65,8 +70,7 @@ php -r '
     }
 ' "$version"
 
-mkdir -p "$out_dir"
-zip_path="$(cd "$out_dir" && pwd)/wordpress-monitoring-$version.zip"
+zip_path="$out_dir/wordpress-monitoring-$version.zip"
 rm -f "$zip_path"
 
 cd "$work"
