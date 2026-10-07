@@ -85,11 +85,14 @@ final class Plugin
         add_filter('plugins_api', [$updater, 'filterPluginInformation'], 10, 3);
 
         // "Check again" on Dashboard → Updates should see a fresh release at once.
+        // Priority 1: core hooks wp_update_plugins to the same action at 10
+        // before plugins load, so a later default-priority flush would run
+        // only after the check had already read the stale cache.
         add_action('load-update-core.php', static function () use ($updater): void {
             if (isset($_GET['force-check'])) {
                 $updater->flush();
             }
-        });
+        }, 1);
 
         add_action('upgrader_process_complete', static function () use ($updater): void {
             $updater->flush();
