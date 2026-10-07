@@ -1,0 +1,57 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  # A tag goes straight to sites with automatic updates: publish only what
+  # passes the same gates as main.
+  tests:
+    uses: ./.github/workflows/tests.yml
+
+  code-quality:
+    uses: ./.github/workflows/code-quality.yml
+
+  zip:
+    needs: [tests, code-quality]
+    runs-on: ubuntu-latest
+    name: Build and attach plugin ZIP
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          # The lowest supported PHP, so the bundle's smoke test runs where it must work.
+          php-version: '8.0'
+          coverage: none
+
+      - name: Build ZIP
+        id: build
+        # Explicit bash adds -o pipefail; with the plain assignment a failing
+        # build stops the job before any release exists.
+        shell: bash
+        run: |
+          zip="$(bin/build-zip.sh "$GITHUB_REF_NAME" dist | tail -n 1)"
+          echo "zip=$zip" >> "$GITHUB_OUTPUT"
+
+      - name: Publish release with ZIP
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ZIP: ${{ steps.build.outputs.zip }}
+        # Creating the release together with its asset publishes it only after
+        # the upload, so "latest" never points at a release without the ZIP.
+        run: |
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            # A draft pre-created by hand would otherwise never become "latest".
+            gh release upload "$GITHUB_REF_NAME" "$ZIP" --clobber
+            gh release edit "$GITHUB_REF_NAME" --draft=false
+          else
+            gh release create "$GITHUB_REF_NAME" "$ZIP" --verify-tag --title "$GITHUB_REF_NAME" --generate-notes
+          fi

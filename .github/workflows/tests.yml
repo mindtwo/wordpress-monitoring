@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_call:
 
 jobs:
   tests:
@@ -48,3 +49,23 @@ jobs:
 
       - name: Lint all source files on PHP 8.0
         run: find src -name '*.php' -print0 | xargs -0 -n1 -P4 php -l > /dev/null && echo "8.0 syntax OK"
+
+  zip-build:
+    runs-on: ubuntu-latest
+    name: Release ZIP build on PHP 8.0
+
+    # Catches build regressions before a tag does, and loads the bundle on the
+    # lowest PHP version it promises.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.0'
+          coverage: none
+
+      - name: Build the ZIP for the version in the plugin header
+        shell: bash
+        run: |
+          version="$(sed -n 's/^ \* Version: *//p' wordpress-monitoring.php | tr -d '[:space:]')"
+          bin/build-zip.sh "$version" "$RUNNER_TEMP/zip"

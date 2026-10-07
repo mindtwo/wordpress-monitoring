@@ -96,9 +96,32 @@ interface WordPressApi
 
     public function deleteTransient(string $name): void;
 
+    /**
+     * Network-wide transient on multisite, a regular transient otherwise.
+     *
+     * @return mixed
+     */
+    public function siteTransient(string $name);
+
+    /**
+     * @param  mixed  $value
+     */
+    public function setSiteTransient(string $name, $value, int $ttlSeconds): void;
+
+    public function deleteSiteTransient(string $name): void;
+
     public function nextScheduled(string $hook): ?int;
 
     public function scheduleEvent(int $timestamp, string $recurrence, string $hook): void;
 
     public function clearScheduledHook(string $hook): void;
+
+    /**
+     * An HTTP GET through the WordPress HTTP API. Null on transport errors
+     * (DNS, TLS, timeout); HTTP error statuses are returned, not swallowed.
+     *
+     * @param  array<string, string>  $headers
+     * @return array{status: int, body: string}|null
+     */
+    public function remoteGet(string $url, array $headers, int $timeoutSeconds): ?array;
 }

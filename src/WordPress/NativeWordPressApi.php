@@ -160,6 +160,25 @@ final class NativeWordPressApi implements WordPressApi
         }
     }
 
+    public function siteTransient(string $name)
+    {
+        return function_exists('get_site_transient') ? get_site_transient($name) : false;
+    }
+
+    public function setSiteTransient(string $name, $value, int $ttlSeconds): void
+    {
+        if (function_exists('set_site_transient')) {
+            set_site_transient($name, $value, $ttlSeconds);
+        }
+    }
+
+    public function deleteSiteTransient(string $name): void
+    {
+        if (function_exists('delete_site_transient')) {
+            delete_site_transient($name);
+        }
+    }
+
     public function nextScheduled(string $hook): ?int
     {
         if (! function_exists('wp_next_scheduled')) {
@@ -183,6 +202,24 @@ final class NativeWordPressApi implements WordPressApi
         if (function_exists('wp_clear_scheduled_hook')) {
             wp_clear_scheduled_hook($hook);
         }
+    }
+
+    public function remoteGet(string $url, array $headers, int $timeoutSeconds): ?array
+    {
+        if (! function_exists('wp_remote_get')) {
+            return null;
+        }
+
+        $response = wp_remote_get($url, ['headers' => $headers, 'timeout' => $timeoutSeconds]);
+
+        if (is_wp_error($response)) {
+            return null;
+        }
+
+        return [
+            'status' => (int) wp_remote_retrieve_response_code($response),
+            'body' => wp_remote_retrieve_body($response),
+        ];
     }
 
     /**

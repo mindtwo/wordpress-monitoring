@@ -34,6 +34,7 @@ final class WordPressConfigurationRepository implements ConfigurationRepository
         'signature_tolerance' => 300,
         'timeout' => 15,
         'project_root' => '',
+        'self_update' => true,
     ];
 
     public function __construct(private WordPressApi $wordPress) {}
@@ -104,6 +105,15 @@ final class WordPressConfigurationRepository implements ConfigurationRepository
     public function scheduleEnabled(): bool
     {
         return $this->enabled() && $this->boolean('schedule_enabled', 'MONITORING_SCHEDULE_ENABLED');
+    }
+
+    /**
+     * Update checks for ZIP installs. Deliberately independent of the master
+     * switch: pausing monitoring must not cut a site off from plugin fixes.
+     */
+    public function selfUpdateEnabled(): bool
+    {
+        return $this->boolean('self_update', 'MONITORING_SELF_UPDATE');
     }
 
     public function integer(string $key): int

@@ -53,6 +53,9 @@ final class FakeWordPressApi implements WordPressApi
     /** @var array<string, array{0: mixed, 1: int}> value + ttl */
     public array $transients = [];
 
+    /** @var array<string, array{0: mixed, 1: int}> value + ttl, network-wide on multisite */
+    public array $siteTransients = [];
+
     /** @var array<string, int> */
     public array $scheduled = [];
 
@@ -61,6 +64,12 @@ final class FakeWordPressApi implements WordPressApi
 
     /** @var array<int, string> */
     public array $clearedHooks = [];
+
+    /** @var array<string, array{status: int, body: string}> url => response; unknown urls fail like a transport error */
+    public array $remoteResponses = [];
+
+    /** @var array<int, array{url: string, headers: array<string, string>, timeout: int}> */
+    public array $remoteRequests = [];
 
     public function version(): ?string
     {
@@ -157,6 +166,21 @@ final class FakeWordPressApi implements WordPressApi
         unset($this->transients[$name]);
     }
 
+    public function siteTransient(string $name)
+    {
+        return $this->siteTransients[$name][0] ?? false;
+    }
+
+    public function setSiteTransient(string $name, $value, int $ttlSeconds): void
+    {
+        $this->siteTransients[$name] = [$value, $ttlSeconds];
+    }
+
+    public function deleteSiteTransient(string $name): void
+    {
+        unset($this->siteTransients[$name]);
+    }
+
     public function nextScheduled(string $hook): ?int
     {
         return $this->scheduled[$hook] ?? null;
@@ -172,5 +196,12 @@ final class FakeWordPressApi implements WordPressApi
     {
         unset($this->scheduled[$hook]);
         $this->clearedHooks[] = $hook;
+    }
+
+    public function remoteGet(string $url, array $headers, int $timeoutSeconds): ?array
+    {
+        $this->remoteRequests[] = ['url' => $url, 'headers' => $headers, 'timeout' => $timeoutSeconds];
+
+        return $this->remoteResponses[$url] ?? null;
     }
 }

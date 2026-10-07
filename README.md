@@ -21,6 +21,27 @@ and git status — this plugin adds:
 
 ## Installation
 
+### Classic WordPress without Composer (ZIP upload)
+
+For sites that are not versioned and have no Composer setup. Every
+[GitHub release](https://github.com/mindtwo/wordpress-monitoring/releases) carries a ready-to-install
+`wordpress-monitoring-<version>.zip` with all dependencies bundled. Use that asset — the
+auto-generated "Source code (zip)" lacks `vendor/` and leaves the plugin silently inactive.
+
+1. **Plugins → Add New → Upload Plugin**, choose the ZIP, install and activate.
+2. **Settings → Monitoring**: enter project key and secret from the dashboard.
+3. Low-traffic site? WP-Cron only runs on visits — either configure a
+   [real cron](https://developer.wordpress.org/plugins/cron/hooking-wp-cron-into-the-system-task-scheduler/)
+   or let the dashboard pull.
+
+Requirements: WordPress 6.0+, PHP 8.0+.
+
+**Updates** appear like any other plugin update under *Plugins* and *Dashboard → Updates*,
+including one-click and automatic updates. The plugin asks the latest GitHub release (cached for
+6 hours, failures for 1 hour; *Check again* clears the cache). This only happens for ZIP installs —
+Composer-managed installs never self-update. Disable it with
+`define('MONITORING_SELF_UPDATE', false);`.
+
 ### Composer-based WordPress (Bedrock & co.)
 
 ```bash
@@ -94,6 +115,7 @@ blank backend fields fall through. Every setting is overridable:
 | `MONITORING_RATE_LIMIT` | `10` | Pull requests per minute per IP |
 | `MONITORING_SIGNATURE_TOLERANCE` | `300` | Signature timestamp window (seconds) |
 | `MONITORING_PROJECT_ROOT` | auto | Where composer.lock & git live (auto-detects Bedrock layouts) |
+| `MONITORING_SELF_UPDATE` | `true` | Update checks against GitHub releases (ZIP installs only) |
 
 ## The pull endpoint
 
@@ -134,6 +156,23 @@ WordPress glue ([`Plugin`](src/Plugin.php), the settings screen) only wires hook
 composer install
 composer check    # pint --test + phpstan (level 8, wordpress-stubs) + pest
 ```
+
+## Releasing
+
+1. Bump `Version:` in [`wordpress-monitoring.php`](wordpress-monitoring.php) and add the
+   [CHANGELOG](CHANGELOG.md) entry; commit. Raising the minimum PHP or WordPress version? Change
+   `Requires PHP` / `Requires at least` in the same header — the ZIP build resolves its
+   dependencies against it, and installed sites read it from the tag before (auto-)updating.
+   Both lines must stay plain version numbers (`6.0`, `8.0`); the build fails otherwise, because
+   installed sites would never be offered a release whose requirements they cannot read.
+2. Tag and push: `git tag v1.2.0 && git push origin v1.2.0`. Create releases this way, not in the
+   GitHub UI — a release published there is "latest" without its ZIP until the workflow finished.
+
+The [release workflow](.github/workflows/release.yml) builds the ZIP with
+[`bin/build-zip.sh`](bin/build-zip.sh) and attaches it to the GitHub release (creating the release
+if needed). The build fails when the tag and the plugin header disagree — a mismatch would make
+WordPress offer the same update forever. To build locally: `bin/build-zip.sh 1.2.0` (packages the
+committed `HEAD` into `dist/`).
 
 ## Security
 
