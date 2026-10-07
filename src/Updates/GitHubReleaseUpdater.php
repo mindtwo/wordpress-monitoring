@@ -110,14 +110,22 @@ final class GitHubReleaseUpdater
             return $result;
         }
 
+        // Same source and fail-closed rule as filterUpdate(): the modal's
+        // "Install Update Now" button is gated on these values.
+        $requirements = $this->requirements($release);
+
+        if ($requirements === null) {
+            return $result;
+        }
+
         return (object) [
             'name' => 'mindtwo Monitoring',
             'slug' => self::SLUG,
             'version' => $release['version'],
             'author' => '<a href="https://www.mindtwo.de">mindtwo GmbH</a>',
             'homepage' => self::UPDATE_URI,
-            'requires' => $release['requires'],
-            'requires_php' => $release['requires_php'],
+            'requires' => $requirements['requires'],
+            'requires_php' => $requirements['requires_php'],
             'last_updated' => $release['published_at'],
             'download_link' => $release['package'],
             'sections' => [

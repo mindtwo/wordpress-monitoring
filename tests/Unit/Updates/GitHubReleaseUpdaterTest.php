@@ -256,6 +256,32 @@ test('the details modal is answered for the own slug only', function () {
         ->and($info->sections['changelog'])->not->toContain('<b>');
 });
 
+test('the details modal resolves the requirements of the release it shows', function () {
+    // A cache entry written by the modal itself (or before the requirements
+    // were fetched) has none yet; null would make WordPress treat the
+    // release as compatible and enable "Install Update Now".
+    $wordPress = new FakeWordPressApi;
+    releaseResponse($wordPress, 200, githubRelease('v1.2.0'));
+    pluginHeaderResponse($wordPress, 'v1.2.0', '6.4', '8.1');
+
+    $info = updater($wordPress)->filterPluginInformation(false, 'plugin_information', (object) ['slug' => 'wordpress-monitoring']);
+
+    expect($info)->toBeObject()
+        ->and($info->requires)->toBe('6.4')
+        ->and($info->requires_php)->toBe('8.1')
+        ->and($wordPress->siteTransients[GitHubReleaseUpdater::CACHE_TRANSIENT][0]['requires_php'])->toBe('8.1');
+});
+
+test('the details modal fails closed when the requirements cannot be read', function () {
+    $wordPress = new FakeWordPressApi;
+    releaseResponse($wordPress, 200, githubRelease('v1.2.0'));
+    pluginHeaderResponse($wordPress, 'v1.2.0', status: 404);
+
+    $info = updater($wordPress)->filterPluginInformation(false, 'plugin_information', (object) ['slug' => 'wordpress-monitoring']);
+
+    expect($info)->not->toBeObject();
+});
+
 test('other plugins_api actions pass through untouched', function () {
     $wordPress = new FakeWordPressApi;
     releaseResponse($wordPress, 200, githubRelease());
