@@ -163,6 +163,8 @@ composer check    # pint --test + phpstan (level 8, wordpress-stubs) + pest
    [CHANGELOG](CHANGELOG.md) entry; commit. Raising the minimum PHP or WordPress version? Change
    `Requires PHP` / `Requires at least` in the same header — the ZIP build resolves its
    dependencies against it, and installed sites read it from the tag before (auto-)updating.
+   Both lines must stay plain version numbers (`6.0`, `8.0`); the build fails otherwise, because
+   installed sites would never be offered a release whose requirements they cannot read.
 2. Tag and push: `git tag v1.2.0 && git push origin v1.2.0`.
 
 The [release workflow](.github/workflows/release.yml) builds the ZIP with

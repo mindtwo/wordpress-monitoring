@@ -42,6 +42,15 @@ if ! [[ "$lowest_php" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
     exit 1
 fi
 
+# The updater reads both requirements from the tag and fails closed on either;
+# an unreadable one would ship a release that no installed site is offered.
+lowest_wp="$(header 'Requires at least')"
+
+if ! [[ "$lowest_wp" =~ ^[0-9]+(\.[0-9]+)*$ ]]; then
+    echo "Plugin header has no valid 'Requires at least', got '$lowest_wp'." >&2
+    exit 1
+fi
+
 if [ "$header_version" != "$version" ]; then
     # A mismatch would make WordPress offer the same update forever.
     echo "Plugin header says Version: $header_version, but the release is $version." >&2
