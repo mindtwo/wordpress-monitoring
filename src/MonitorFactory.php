@@ -76,14 +76,23 @@ final class MonitorFactory
         $absPath = $wordPress->absPath() ?? (string) getcwd();
         $absPath = rtrim($absPath, '/');
 
-        foreach ([$absPath, dirname($absPath), dirname($absPath, 2)] as $candidate) {
-            if ($candidate === '') {
-                continue;
-            }
+        $candidates = array_filter(
+            [$absPath, dirname($absPath), dirname($absPath, 2)],
+            static fn (string $candidate): bool => $candidate !== ''
+        );
 
-            // Either marker is enough: deploy artifacts sometimes ship only one
-            // of the two, and the audit collector needs the lock file.
-            if (is_file($candidate.'/composer.json') || is_file($candidate.'/composer.lock')) {
+        // The lock file decides first: johnpbloch/wordpress installs the core
+        // with its own composer.json into public/wp/, while the project's
+        // lock (which the package and audit collectors read) sits above it.
+        foreach ($candidates as $candidate) {
+            if (is_file($candidate.'/composer.lock')) {
+                return $candidate;
+            }
+        }
+
+        // No lock anywhere: the nearest manifest still marks the project.
+        foreach ($candidates as $candidate) {
+            if (is_file($candidate.'/composer.json')) {
                 return $candidate;
             }
         }

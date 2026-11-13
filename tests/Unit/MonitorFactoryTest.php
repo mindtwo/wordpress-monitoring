@@ -80,3 +80,70 @@ test('an explicitly configured project root wins', function () {
 
     expect(MonitorFactory::projectRoot($wordPress, $config))->toBe(sys_get_temp_dir());
 });
+
+describe('project root with a composer.lock', function () {
+    afterEach(function () {
+        if (isset($this->projectTree)) {
+            removeTemporaryProjectTree($this->projectTree);
+        }
+    });
+
+    test('the lock in the project root beats the composer.json of a johnpbloch/wordpress core', function () {
+        // johnpbloch/wordpress installs the core into public/wp/ together with
+        // its own composer.json, but the project's lock lives two levels up.
+        $this->projectTree = temporaryProjectTree([
+            'composer.json',
+            'composer.lock',
+            'public/wp/composer.json',
+        ]);
+
+        $wordPress = fakeWordPress();
+        $wordPress->absPath = $this->projectTree.'/public/wp/';
+
+        expect(MonitorFactory::projectRoot($wordPress, new WordPressConfigurationRepository($wordPress)))
+            ->toBe($this->projectTree);
+    });
+
+    test('the nearest composer.lock wins over one further up', function () {
+        $this->projectTree = temporaryProjectTree([
+            'composer.lock',
+            'site/composer.json',
+            'site/composer.lock',
+        ]);
+
+        $wordPress = fakeWordPress();
+        $wordPress->absPath = $this->projectTree.'/site/';
+
+        expect(MonitorFactory::projectRoot($wordPress, new WordPressConfigurationRepository($wordPress)))
+            ->toBe($this->projectTree.'/site');
+    });
+
+    test('without any composer.lock the nearest composer.json still marks the root', function () {
+        $this->projectTree = temporaryProjectTree([
+            'composer.json',
+            'public/wp/composer.json',
+        ]);
+
+        $wordPress = fakeWordPress();
+        $wordPress->absPath = $this->projectTree.'/public/wp/';
+
+        expect(MonitorFactory::projectRoot($wordPress, new WordPressConfigurationRepository($wordPress)))
+            ->toBe($this->projectTree.'/public/wp');
+    });
+
+    test('a configured project root wins over a detected composer.lock', function () {
+        $this->projectTree = temporaryProjectTree([
+            'composer.json',
+            'composer.lock',
+            'public/wp/composer.json',
+            'elsewhere/composer.json',
+        ]);
+
+        $wordPress = fakeWordPress();
+        $wordPress->absPath = $this->projectTree.'/public/wp/';
+        $wordPress->options['mindtwo_monitoring_settings']['project_root'] = $this->projectTree.'/elsewhere';
+
+        expect(MonitorFactory::projectRoot($wordPress, new WordPressConfigurationRepository($wordPress)))
+            ->toBe($this->projectTree.'/elsewhere');
+    });
+});
