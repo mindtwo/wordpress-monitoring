@@ -5,6 +5,12 @@ All notable changes to `mindtwo/wordpress-monitoring` will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Fixed
+
+- Projects with `johnpbloch/wordpress` report their Composer packages and the Composer audit again without `MONITORING_PROJECT_ROOT`. The project root detection took the core's own `composer.json` in `public/wp/` and found no `composer.lock` there; it now prefers the nearest directory with a `composer.lock` and only falls back to the nearest `composer.json` when no lock exists. `MONITORING_PROJECT_ROOT` still wins.
+
 ## 1.1.1 - 2026-10-07
 
 ### Fixed

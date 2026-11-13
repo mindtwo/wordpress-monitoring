@@ -114,7 +114,7 @@ blank backend fields fall through. Every setting is overridable:
 | `MONITORING_ROUTE_CACHE` | `300` | Pull snapshot cache seconds (`0` disables) |
 | `MONITORING_RATE_LIMIT` | `10` | Pull requests per minute per IP |
 | `MONITORING_SIGNATURE_TOLERANCE` | `300` | Signature timestamp window (seconds) |
-| `MONITORING_PROJECT_ROOT` | auto | Where composer.lock & git live (auto-detects Bedrock layouts) |
+| `MONITORING_PROJECT_ROOT` | auto | Where composer.lock & git live. Auto-detection checks ABSPATH and up to two parent directories; the nearest `composer.lock` wins, otherwise the nearest `composer.json` (covers Bedrock and `johnpbloch/wordpress` layouts) |
 | `MONITORING_SELF_UPDATE` | `true` | Update checks against GitHub releases (ZIP installs only) |
 
 ## The pull endpoint
