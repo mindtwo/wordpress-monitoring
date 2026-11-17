@@ -81,6 +81,11 @@ final class SettingsPage
 
         echo '<div class="wrap"><h1>mindtwo Monitoring</h1>';
         echo '<p>Credentials are issued by the central monitoring dashboard. Values left blank fall back to <code>MONITORING_*</code> constants or environment variables.</p>';
+
+        // The checkbox alone would claim "enabled" on a local copy that stays silent.
+        if (($options['enabled'] ?? true) && ! (new WordPressConfigurationRepository($this->wordPress))->enabled()) {
+            echo '<div class="notice notice-warning inline"><p>Monitoring is paused on this installation: the environment type is <code>local</code> or <code>development</code>, or <code>MONITORING_ENABLED</code> is false. Nothing is pushed or served. Set <code>MONITORING_ENABLED</code> to true to report from here anyway.</p></div>';
+        }
         echo '<form method="post" action="options.php">';
 
         settings_fields(self::GROUP);

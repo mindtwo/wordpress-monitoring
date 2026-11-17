@@ -118,3 +118,47 @@ test('self-update stays available while data collection is disabled', function (
 
     expect((new WordPressConfigurationRepository($wordPress))->selfUpdateEnabled())->toBeTrue();
 });
+
+test('a local or development copy stays silent although the backend option is enabled', function (string $environment) {
+    // A production database pulled to a laptop brings the live key and enabled flag along.
+    $wordPress = fakeWordPress();
+    $wordPress->options['mindtwo_monitoring_settings']['enabled'] = true;
+    $wordPress->environmentType = $environment;
+
+    $repository = new WordPressConfigurationRepository($wordPress);
+
+    expect($repository->enabled())->toBeFalse()
+        ->and($repository->routeEnabled())->toBeFalse()
+        ->and($repository->scheduleEnabled())->toBeFalse();
+})->with(['local', 'development']);
+
+test('staging and production keep reporting', function (string $environment) {
+    $wordPress = fakeWordPress();
+    $wordPress->environmentType = $environment;
+
+    expect((new WordPressConfigurationRepository($wordPress))->enabled())->toBeTrue();
+})->with(['staging', 'production']);
+
+test('a local copy reports when MONITORING_ENABLED opts in explicitly', function () {
+    $wordPress = fakeWordPress();
+    $wordPress->environmentType = 'local';
+    $wordPress->constants['MONITORING_ENABLED'] = true;
+
+    expect((new WordPressConfigurationRepository($wordPress))->enabled())->toBeTrue();
+});
+
+test('MONITORING_ENABLED=false switches monitoring off although the backend option is enabled', function () {
+    $wordPress = fakeWordPress();
+    $wordPress->options['mindtwo_monitoring_settings']['enabled'] = true;
+    $wordPress->envs['MONITORING_ENABLED'] = 'false';
+
+    expect((new WordPressConfigurationRepository($wordPress))->enabled())->toBeFalse();
+});
+
+test('a true MONITORING_ENABLED does not override a backend switch that is off', function () {
+    $wordPress = fakeWordPress();
+    $wordPress->options['mindtwo_monitoring_settings']['enabled'] = false;
+    $wordPress->constants['MONITORING_ENABLED'] = true;
+
+    expect((new WordPressConfigurationRepository($wordPress))->enabled())->toBeFalse();
+});

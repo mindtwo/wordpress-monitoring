@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Local copies no longer report to the production target. A production database pulled to a laptop brought the live project key and the enabled option along, and without `WP_ENVIRONMENT_TYPE` WordPress counts as `production`, so the copy pushed its own PHP, Node.js and OS versions. Installations with environment type `local` or `development` now stay silent unless `MONITORING_ENABLED` is set to true, and `MONITORING_ENABLED=false` now wins over the backend option. The settings screen says when monitoring is paused this way.
 - Projects with `johnpbloch/wordpress` report their Composer packages and the Composer audit again without `MONITORING_PROJECT_ROOT`. The project root detection took the core's own `composer.json` in `public/wp/` and found no `composer.lock` there; it now prefers the nearest directory with a `composer.lock` and only falls back to the nearest `composer.json` when no lock exists. `MONITORING_PROJECT_ROOT` still wins.
 
 ## 1.1.1 - 2026-10-07

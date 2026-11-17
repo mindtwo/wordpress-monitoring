@@ -19,6 +19,9 @@ final class WordPressConfigurationRepository implements ConfigurationRepository
 {
     public const OPTION = 'mindtwo_monitoring_settings';
 
+    /** Environment types (wp_get_environment_type()) that never report on their own. */
+    private const SILENT_ENVIRONMENTS = ['local', 'development'];
+
     /** @var array<string, mixed> */
     private const DEFAULTS = [
         'enabled' => true,
@@ -92,8 +95,28 @@ final class WordPressConfigurationRepository implements ConfigurationRepository
         return $value !== null && $value !== '' ? $value : ($default ?? self::DEFAULTS[$key] ?? null);
     }
 
+    /**
+     * The master switch. Two rules sit above the usual priority chain, because
+     * a production database pulled to a laptop brings the live key and an
+     * enabled backend option along:
+     *
+     * - A `local` or `development` installation stays silent unless
+     *   MONITORING_ENABLED opts in explicitly.
+     * - MONITORING_ENABLED set to false (constant or environment variable)
+     *   wins over the backend option, so it works as a kill switch.
+     */
     public function enabled(): bool
     {
+        $override = $this->constantOrEnvBoolean('MONITORING_ENABLED');
+
+        if ($override === false) {
+            return false;
+        }
+
+        if (in_array($this->wordPress->environmentType(), self::SILENT_ENVIRONMENTS, true) && $override !== true) {
+            return false;
+        }
+
         return $this->boolean('enabled', 'MONITORING_ENABLED');
     }
 
@@ -152,10 +175,35 @@ final class WordPressConfigurationRepository implements ConfigurationRepository
         return self::DEFAULTS[$optionKey] ?? null;
     }
 
+    /**
+     * The constant, else the environment variable, as a boolean; null when
+     * neither is set.
+     */
+    private function constantOrEnvBoolean(string $name): ?bool
+    {
+        $value = $this->wordPress->constant($name);
+
+        if ($value === null || $value === '') {
+            $value = $this->wordPress->env($name);
+        }
+
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return $this->toBoolean($value);
+    }
+
     private function boolean(string $optionKey, string $constantName): bool
     {
-        $value = $this->value($optionKey, $constantName);
+        return $this->toBoolean($this->value($optionKey, $constantName));
+    }
 
+    /**
+     * @param  mixed  $value
+     */
+    private function toBoolean($value): bool
+    {
         if (is_bool($value)) {
             return $value;
         }

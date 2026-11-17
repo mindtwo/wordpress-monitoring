@@ -98,12 +98,17 @@ define('MONITORING_PROJECT_KEY', 'prj_live_8f3a…');
 define('MONITORING_SECRET', getenv('MONITORING_SECRET'));
 ```
 
+Local copies: a production database pulled to a laptop carries the live project key and
+an enabled backend option. Define `WP_ENVIRONMENT_TYPE` as `local` (or `development`) on
+such installations and the plugin neither pushes nor serves snapshots, whatever the
+database says.
+
 Alternatively use the **Settings → Monitoring** screen. Backend values win over constants;
 blank backend fields fall through. Every setting is overridable:
 
 | Key (option / constant) | Default | Purpose |
 | --- | --- | --- |
-| `enabled` / `MONITORING_ENABLED` | `true` | Master switch |
+| `enabled` / `MONITORING_ENABLED` | `true` | Master switch. `MONITORING_ENABLED=false` wins over the backend option. Installations with environment type `local` or `development` stay silent unless `MONITORING_ENABLED=true` |
 | `project_key` / `MONITORING_PROJECT_KEY` | – | Project key from the dashboard |
 | `secret` / `MONITORING_SECRET` | – | Shared secret (never transmitted) |
 | `endpoint` / `MONITORING_ENDPOINT` | central endpoint | Push target |
