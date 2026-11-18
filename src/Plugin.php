@@ -44,8 +44,8 @@ final class Plugin
             $scheduler->sync();
 
             // Keys and secrets saved in the backend before constants won still sit in
-            // the database and travel with every copy of it. Writes only when a stored
-            // value is overridden, i.e. once per site after the update.
+            // the database and travel with every copy of it. Removes only exact copies of
+            // a wp-config constant and writes only then, i.e. once per site after the update.
             $config->purgeOverriddenValues();
         });
 

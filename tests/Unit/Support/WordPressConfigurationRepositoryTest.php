@@ -207,12 +207,12 @@ test('flag reports the switch value in effect', function () {
     expect((new WordPressConfigurationRepository($wordPress))->flag('enabled'))->toBeFalse();
 });
 
-test('overridden keys and secrets are removed from the stored settings', function () {
+test('stored values identical to a constant are removed', function () {
     $wordPress = fakeWordPress();
     $wordPress->options['mindtwo_monitoring_settings']['endpoint'] = 'https://stored.example';
     $wordPress->options['mindtwo_monitoring_settings']['enabled'] = true;
-    $wordPress->constants['MONITORING_PROJECT_KEY'] = 'prj_live';
-    $wordPress->constants['MONITORING_SECRET'] = 'live-secret';
+    $wordPress->constants['MONITORING_PROJECT_KEY'] = 'prj_test';
+    $wordPress->constants['MONITORING_SECRET'] = ' test-secret ';
 
     $purged = (new WordPressConfigurationRepository($wordPress))->purgeOverriddenValues();
 
@@ -223,6 +223,30 @@ test('overridden keys and secrets are removed from the stored settings', functio
             'endpoint' => 'https://stored.example',
             'enabled' => true,
         ]);
+});
+
+test('a stored value that differs from the constant is kept', function () {
+    // Stale constant or a network-wide constant with per-site keys: deleting would lose data.
+    $wordPress = fakeWordPress();
+    $wordPress->constants['MONITORING_PROJECT_KEY'] = 'prj_live';
+    $wordPress->constants['MONITORING_SECRET'] = 'live-secret';
+
+    $before = $wordPress->options['mindtwo_monitoring_settings'];
+
+    expect((new WordPressConfigurationRepository($wordPress))->purgeOverriddenValues())->toBeFalse()
+        ->and($wordPress->options['mindtwo_monitoring_settings'])->toBe($before);
+});
+
+test('a value overridden only by an environment variable is kept', function () {
+    // Web-server variables (SetEnv, fastcgi_param) are missing in CLI cron, which then needs the stored value.
+    $wordPress = fakeWordPress();
+    $wordPress->envs['MONITORING_PROJECT_KEY'] = 'prj_test';
+    $wordPress->envs['MONITORING_SECRET'] = 'test-secret';
+
+    $before = $wordPress->options['mindtwo_monitoring_settings'];
+
+    expect((new WordPressConfigurationRepository($wordPress))->purgeOverriddenValues())->toBeFalse()
+        ->and($wordPress->options['mindtwo_monitoring_settings'])->toBe($before);
 });
 
 test('purging leaves the stored settings alone when nothing is overridden', function () {

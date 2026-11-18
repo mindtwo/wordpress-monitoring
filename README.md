@@ -100,8 +100,9 @@ define('MONITORING_SECRET', getenv('MONITORING_SECRET') ?: '');
 
 Alternatively use the **Settings → Monitoring** screen. Constants and environment variables win
 over backend values; the screen shows such fields read-only, and the plugin removes stored keys,
-secrets and other text values they override from the database, so a database copy carries none of
-them. A `false` constant (e.g. from `getenv()` of a missing variable) counts as unset for text
+secrets and other text values that are identical to the overriding wp-config constant, so a database
+copy carries no duplicate of them. Differing values and values overridden only by an environment
+variable stay stored. A `false` constant (e.g. from `getenv()` of a missing variable) counts as unset for text
 settings, but switches a switch such as `MONITORING_ENABLED` off. Every setting is overridable:
 
 | Key (option / constant) | Default | Purpose |

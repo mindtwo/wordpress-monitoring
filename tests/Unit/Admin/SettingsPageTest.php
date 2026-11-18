@@ -5,10 +5,10 @@ declare(strict_types=1);
 use Mindtwo\Monitoring\WordPress\Admin\SettingsPage;
 use Mindtwo\Monitoring\WordPress\Tests\Fakes\FakeWordPressApi;
 
-test('saving the settings drops backend values that a constant overrides', function () {
+test('saving the settings drops stored values identical to a constant', function () {
     // So the next database copy carries no live key or secret.
     $wordPress = new FakeWordPressApi;
-    $wordPress->options['mindtwo_monitoring_settings'] = ['project_key' => 'prj_old', 'secret' => 'old-secret'];
+    $wordPress->options['mindtwo_monitoring_settings'] = ['project_key' => 'prj_live', 'secret' => 'live-secret'];
     $wordPress->constants['MONITORING_PROJECT_KEY'] = 'prj_live';
     $wordPress->constants['MONITORING_SECRET'] = 'live-secret';
 
@@ -16,6 +16,18 @@ test('saving the settings drops backend values that a constant overrides', funct
 
     expect($saved['project_key'])->toBe('')
         ->and($saved['secret'])->toBe('');
+});
+
+test('saving the settings keeps stored values that differ from the override or come from the environment', function () {
+    $wordPress = new FakeWordPressApi;
+    $wordPress->options['mindtwo_monitoring_settings'] = ['project_key' => 'prj_old', 'secret' => 'old-secret'];
+    $wordPress->constants['MONITORING_PROJECT_KEY'] = 'prj_live';
+    $wordPress->envs['MONITORING_SECRET'] = 'old-secret';
+
+    $saved = (new SettingsPage($wordPress))->sanitize(['enabled' => '1']);
+
+    expect($saved['project_key'])->toBe('prj_old')
+        ->and($saved['secret'])->toBe('old-secret');
 });
 
 test('a switch locked by a constant keeps its stored value on save', function () {

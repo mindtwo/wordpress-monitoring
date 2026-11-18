@@ -151,9 +151,30 @@ final class WordPressConfigurationRepository implements ConfigurationRepository
     }
 
     /**
-     * Empties stored keys, secrets and other text settings that a constant or
-     * environment variable overrides, so the database (and every copy of it)
-     * no longer carries them. Returns whether anything was removed.
+     * Whether a stored text value is a mere copy of a wp-config constant and
+     * can be removed without losing anything. Only constants count: they are
+     * defined in every context, whereas an environment variable set by the web
+     * server is missing in CLI cron, which then still needs the stored value.
+     * A stored value that differs from the constant is kept for a person to
+     * decide on (stale constant, network-wide constant with per-site keys).
+     *
+     * @param  mixed  $stored
+     */
+    public function isRedundant(string $key, $stored): bool
+    {
+        if (! in_array($key, self::PURGEABLE, true) || ! is_string($stored) || trim($stored) === '') {
+            return false;
+        }
+
+        $constant = $this->wordPress->constant(self::constantName($key));
+
+        return is_string($constant) && trim($constant) !== '' && trim($constant) === trim($stored);
+    }
+
+    /**
+     * Empties stored keys, secrets and other text settings that are identical
+     * to the wp-config constant overriding them, so the database (and every
+     * copy of it) no longer carries them. Returns whether anything was removed.
      */
     public function purgeOverriddenValues(): bool
     {
@@ -166,7 +187,7 @@ final class WordPressConfigurationRepository implements ConfigurationRepository
         $changed = false;
 
         foreach (self::PURGEABLE as $key) {
-            if (($options[$key] ?? '') !== '' && $this->lockedBy($key) !== null) {
+            if ($this->isRedundant($key, $options[$key] ?? '')) {
                 $options[$key] = '';
                 $changed = true;
             }

@@ -58,6 +58,7 @@ final class SettingsPage
         $current = $this->wordPress->option(WordPressConfigurationRepository::OPTION, []);
         $current = is_array($current) ? $current : [];
 
+        $config = new WordPressConfigurationRepository($this->wordPress);
         $locks = $this->locks();
         $saved = [];
 
@@ -78,9 +79,15 @@ final class SettingsPage
                 $value = (string) ($current['secret'] ?? '');
             }
 
-            // Overridden text fields are not stored, so the next save removes a
-            // constant-backed key or secret from the database.
-            $saved[$key] = $locks[$key] !== null ? '' : $value;
+            // Overridden text fields are rendered disabled and never submitted. A stored copy
+            // of the wp-config constant is dropped so no database copy carries it; anything
+            // else (a differing value, an override from an environment variable) is kept.
+            if ($locks[$key] !== null) {
+                $stored = (string) ($current[$key] ?? '');
+                $value = $config->isRedundant($key, $stored) ? '' : $stored;
+            }
+
+            $saved[$key] = $value;
         }
 
         return [
