@@ -10,12 +10,12 @@ use Mindtwo\Monitoring\Monitor;
 use Mindtwo\Monitoring\SnapshotBuilder;
 use Mindtwo\Monitoring\SnapshotFactory;
 use Mindtwo\Monitoring\Transport\HmacRequestSigner;
-use Mindtwo\Monitoring\Transport\HttpTransport;
 use Mindtwo\Monitoring\WordPress\Collectors\WordPressCollector;
 use Mindtwo\Monitoring\WordPress\Collectors\WordPressEnvironmentCollector;
 use Mindtwo\Monitoring\WordPress\Collectors\WordPressPluginsCollector;
 use Mindtwo\Monitoring\WordPress\Collectors\WordPressThemesCollector;
 use Mindtwo\Monitoring\WordPress\Support\WordPressConfigurationRepository;
+use Mindtwo\Monitoring\WordPress\Transport\WordPressHttpTransport;
 use Mindtwo\Monitoring\WordPress\WordPress\WordPressApi;
 
 /**
@@ -39,7 +39,10 @@ final class MonitorFactory
             $projectKey !== '' ? $projectKey : null
         );
 
-        $transport = new HttpTransport(
+        // Through wp_remote_post, not base-monitoring's curl transport: the request then
+        // passes pre_http_request, where a local-guard plugin can stop a local copy.
+        $transport = new WordPressHttpTransport(
+            $wordPress,
             $config->endpoint(),
             $config->credentials(),
             new HmacRequestSigner,

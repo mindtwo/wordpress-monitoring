@@ -5,6 +5,12 @@ All notable changes to `mindtwo/wordpress-monitoring` will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Changed
+
+- Snapshots are pushed through the WordPress HTTP API (`wp_remote_post`) instead of base-monitoring's curl transport. The request now passes `pre_http_request` like every other outgoing request, so a must-use plugin that blocks requests on local copies (the project template's `local-guard.php`) also stops a pulled production database from reporting to the live target. Signing, TLS verification and "no redirects" are unchanged.
+
 ## 1.2.0 - 2026-11-18
 
 ### Changed

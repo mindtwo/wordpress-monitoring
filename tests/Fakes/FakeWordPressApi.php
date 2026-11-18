@@ -71,6 +71,12 @@ final class FakeWordPressApi implements WordPressApi
     /** @var array<int, array{url: string, headers: array<string, string>, timeout: int}> */
     public array $remoteRequests = [];
 
+    /** @var array<string, array{status: int, body: string, error: ?string}> url => response; unknown urls fail like a transport error */
+    public array $remotePostResponses = [];
+
+    /** @var array<int, array{url: string, headers: array<string, string>, body: string, timeout: int}> */
+    public array $remotePostRequests = [];
+
     public function version(): ?string
     {
         return $this->version;
@@ -203,5 +209,12 @@ final class FakeWordPressApi implements WordPressApi
         $this->remoteRequests[] = ['url' => $url, 'headers' => $headers, 'timeout' => $timeoutSeconds];
 
         return $this->remoteResponses[$url] ?? null;
+    }
+
+    public function remotePost(string $url, array $headers, string $body, int $timeoutSeconds): array
+    {
+        $this->remotePostRequests[] = ['url' => $url, 'headers' => $headers, 'body' => $body, 'timeout' => $timeoutSeconds];
+
+        return $this->remotePostResponses[$url] ?? ['status' => 0, 'body' => '', 'error' => 'Could not resolve host.'];
     }
 }
