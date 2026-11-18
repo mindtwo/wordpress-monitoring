@@ -20,8 +20,9 @@ final class SettingsPage
 
     private const GROUP = 'mindtwo_monitoring';
 
-    private const TEXT_FIELDS = ['project_key', 'secret', 'endpoint', 'ip_allow_list'];
+    private const TEXT_FIELDS = WordPressConfigurationRepository::TEXT_SETTINGS;
 
+    /** The switches with a checkbox; self_update has none. A test keeps this within SWITCHES. */
     private const SWITCH_FIELDS = ['enabled', 'route_enabled', 'schedule_enabled'];
 
     public function __construct(private WordPressApi $wordPress) {}

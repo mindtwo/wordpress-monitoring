@@ -258,3 +258,15 @@ test('purging leaves the stored settings alone when nothing is overridden', func
     expect((new WordPressConfigurationRepository($wordPress))->purgeOverriddenValues())->toBeFalse()
         ->and($wordPress->options['mindtwo_monitoring_settings'])->toBe($before);
 });
+
+test('an empty array constant does not override the ip allow-list', function () {
+    // define('MONITORING_IP_ALLOW_LIST', array_filter(explode(',', (string) getenv('X')))) yields [] without the variable.
+    $wordPress = fakeWordPress();
+    $wordPress->options['mindtwo_monitoring_settings']['ip_allow_list'] = '203.0.113.10';
+    $wordPress->constants['MONITORING_IP_ALLOW_LIST'] = [];
+
+    $repository = new WordPressConfigurationRepository($wordPress);
+
+    expect($repository->ipAllowList())->toBe(['203.0.113.10'])
+        ->and($repository->lockedBy('ip_allow_list'))->toBeNull();
+});

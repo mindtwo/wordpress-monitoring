@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Mindtwo\Monitoring\WordPress\Admin\SettingsPage;
+use Mindtwo\Monitoring\WordPress\Support\WordPressConfigurationRepository;
 use Mindtwo\Monitoring\WordPress\Tests\Fakes\FakeWordPressApi;
 
 test('saving the settings drops stored values identical to a constant', function () {
@@ -133,4 +134,12 @@ test('sanitizing an already sanitized value keeps unchecked boxes off', function
         ->and($twice['schedule_enabled'])->toBeFalse()
         ->and($twice['enabled'])->toBeTrue()
         ->and($twice)->toBe($once);
+});
+
+test('the settings screen handles exactly the settings the repository treats as text and switches', function () {
+    $text = (new ReflectionClassConstant(SettingsPage::class, 'TEXT_FIELDS'))->getValue();
+    $switches = (new ReflectionClassConstant(SettingsPage::class, 'SWITCH_FIELDS'))->getValue();
+
+    expect($text)->toBe(WordPressConfigurationRepository::TEXT_SETTINGS)
+        ->and(array_diff($switches, WordPressConfigurationRepository::SWITCHES))->toBe([]);
 });

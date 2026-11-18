@@ -29,7 +29,9 @@ For sites that are not versioned and have no Composer setup. Every
 auto-generated "Source code (zip)" lacks `vendor/` and leaves the plugin silently inactive.
 
 1. **Plugins → Add New → Upload Plugin**, choose the ZIP, install and activate.
-2. **Settings → Monitoring**: enter project key and secret from the dashboard.
+2. Add project key and secret from the dashboard as `MONITORING_PROJECT_KEY` and
+   `MONITORING_SECRET` constants in `wp-config.php` (see [Configuration](#configuration)), so they
+   stay out of the database. **Settings → Monitoring** works too, but stores them in the database.
 3. Low-traffic site? WP-Cron only runs on visits — either configure a
    [real cron](https://developer.wordpress.org/plugins/cron/hooking-wp-cron-into-the-system-task-scheduler/)
    or let the dashboard pull.
@@ -102,8 +104,13 @@ Alternatively use the **Settings → Monitoring** screen. Constants and environm
 over backend values; the screen shows such fields read-only, and the plugin removes stored keys,
 secrets and other text values that are identical to the overriding wp-config constant, so a database
 copy carries no duplicate of them. Differing values and values overridden only by an environment
-variable stay stored. A `false` constant (e.g. from `getenv()` of a missing variable) counts as unset for text
-settings, but switches a switch such as `MONITORING_ENABLED` off. Every setting is overridable:
+variable stay stored. A `false` constant (e.g. from `getenv()` of a missing variable) or an empty array counts as
+unset for every setting except the switches (`MONITORING_ENABLED`, `MONITORING_ROUTE_ENABLED`,
+`MONITORING_SCHEDULE_ENABLED`, `MONITORING_SELF_UPDATE`); for those `false` switches off.
+
+To mute a copy of a site (e.g. a local install with a pulled production database), set
+`MONITORING_ENABLED=false`. Empty values do not override anything, so `MONITORING_PROJECT_KEY=`
+alone still leaves the key from the copied database in effect. Every setting is overridable:
 
 | Key (option / constant) | Default | Purpose |
 | --- | --- | --- |

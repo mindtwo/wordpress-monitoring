@@ -39,10 +39,10 @@ final class WordPressConfigurationRepository implements ConfigurationRepository
     ];
 
     /** On/off settings: for these a false constant is a real value. */
-    private const SWITCHES = ['enabled', 'route_enabled', 'schedule_enabled', 'self_update'];
+    public const SWITCHES = ['enabled', 'route_enabled', 'schedule_enabled', 'self_update'];
 
-    /** Stored text settings that are removed once a constant overrides them. */
-    private const PURGEABLE = ['project_key', 'secret', 'endpoint', 'ip_allow_list'];
+    /** Text settings of the settings screen; a stored copy of their wp-config constant is removed. */
+    public const TEXT_SETTINGS = ['project_key', 'secret', 'endpoint', 'ip_allow_list'];
 
     public function __construct(private WordPressApi $wordPress) {}
 
@@ -93,8 +93,7 @@ final class WordPressConfigurationRepository implements ConfigurationRepository
      */
     public function get(string $key, $default = null)
     {
-        $constant = 'MONITORING_'.strtoupper($key);
-        $value = $this->value($key, $constant);
+        $value = $this->value($key, self::constantName($key));
 
         return $value !== null && $value !== '' ? $value : ($default ?? self::DEFAULTS[$key] ?? null);
     }
@@ -162,7 +161,7 @@ final class WordPressConfigurationRepository implements ConfigurationRepository
      */
     public function isRedundant(string $key, $stored): bool
     {
-        if (! in_array($key, self::PURGEABLE, true) || ! is_string($stored) || trim($stored) === '') {
+        if (! in_array($key, self::TEXT_SETTINGS, true) || ! is_string($stored) || trim($stored) === '') {
             return false;
         }
 
@@ -186,7 +185,7 @@ final class WordPressConfigurationRepository implements ConfigurationRepository
 
         $changed = false;
 
-        foreach (self::PURGEABLE as $key) {
+        foreach (self::TEXT_SETTINGS as $key) {
             if ($this->isRedundant($key, $options[$key] ?? '')) {
                 $options[$key] = '';
                 $changed = true;
@@ -230,9 +229,10 @@ final class WordPressConfigurationRepository implements ConfigurationRepository
 
     /**
      * The constant, else the environment variable, else null. For anything but
-     * a switch a false constant counts as unset: define('X', getenv('X'))
-     * yields false when the variable is missing, and must not wipe a stored
-     * key. For switches false is a real value (MONITORING_ENABLED = false).
+     * a switch a false or empty-array constant counts as unset: define('X',
+     * getenv('X')) yields false when the variable is missing (and
+     * array_filter(explode(...)) an empty array), and must not override a
+     * stored value. For switches false is a real value (MONITORING_ENABLED = false).
      *
      * @return mixed
      */
@@ -240,7 +240,7 @@ final class WordPressConfigurationRepository implements ConfigurationRepository
     {
         $constant = $this->wordPress->constant($constantName);
 
-        if ($constant !== null && $constant !== '' && ($switch || $constant !== false)) {
+        if ($constant !== null && $constant !== '' && ($switch || ($constant !== false && $constant !== []))) {
             return $constant;
         }
 
