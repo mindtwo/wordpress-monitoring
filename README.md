@@ -153,6 +153,18 @@ On activation (and kept in sync on every request) a `mindtwo_monitoring_push` ev
 scheduled via WP-Cron. When it fires, a snapshot is built — every collector individually
 fault-isolated — signed, and POSTed to the configured endpoint.
 
+The POST goes through the WordPress HTTP API (`wp_remote_post`, no redirects, TLS verified), so
+site-wide HTTP policies apply to it like to any other outgoing request:
+
+- `WP_HTTP_BLOCK_EXTERNAL`: allow the monitoring host via `WP_ACCESSIBLE_HOSTS`
+  (e.g. `define('WP_ACCESSIBLE_HOSTS', 'monitoring.mindtwo.com');`), or the push is blocked.
+- `pre_http_request`, `http_request_args` and `https_ssl_verify` filters of other plugins can block,
+  rewrite or weaken the request. A must-use plugin that blocks outgoing requests on local copies
+  (the project template's `local-guard.php`) uses exactly this to stop a pulled production
+  database from reporting to the live target.
+- TLS is verified against WordPress' CA bundle (`wp-includes/certificates/ca-bundle.crt`), not the
+  system store.
+
 WP-Cron only runs on traffic; for reliably timed pushes on low-traffic sites use a
 [real cron for wp-cron.php](https://developer.wordpress.org/plugins/cron/hooking-wp-cron-into-the-system-task-scheduler/).
 

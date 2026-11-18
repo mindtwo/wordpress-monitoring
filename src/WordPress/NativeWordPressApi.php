@@ -227,6 +227,31 @@ final class NativeWordPressApi implements WordPressApi
         ];
     }
 
+    public function remotePost(string $url, array $headers, string $body, int $timeoutSeconds): array
+    {
+        if (! function_exists('wp_remote_post')) {
+            return ['status' => 0, 'body' => '', 'error' => 'The WordPress HTTP API is not available.'];
+        }
+
+        $response = wp_remote_post($url, [
+            'headers' => $headers,
+            'body' => $body,
+            'timeout' => $timeoutSeconds,
+            'redirection' => 0,
+            'sslverify' => true,
+        ]);
+
+        if (is_wp_error($response)) {
+            return ['status' => 0, 'body' => '', 'error' => $response->get_error_message()];
+        }
+
+        return [
+            'status' => (int) wp_remote_retrieve_response_code($response),
+            'body' => (string) wp_remote_retrieve_body($response),
+            'error' => null,
+        ];
+    }
+
     /**
      * @return array<string, string>
      */

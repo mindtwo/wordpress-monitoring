@@ -124,4 +124,15 @@ interface WordPressApi
      * @return array{status: int, body: string}|null
      */
     public function remoteGet(string $url, array $headers, int $timeoutSeconds): ?array;
+
+    /**
+     * An HTTP POST through the WordPress HTTP API, so it passes pre_http_request
+     * like every other outgoing request. Redirects are not followed. A transport
+     * error (DNS, TLS, timeout, a request blocked by a filter) comes back as
+     * status 0 with the error message; HTTP error statuses are returned as is.
+     *
+     * @param  array<string, string>  $headers
+     * @return array{status: int, body: string, error: ?string}
+     */
+    public function remotePost(string $url, array $headers, string $body, int $timeoutSeconds): array;
 }

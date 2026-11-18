@@ -147,3 +147,16 @@ describe('project root with a composer.lock', function () {
             ->toBe($this->projectTree.'/elsewhere');
     });
 });
+
+test('the factory pushes through the WordPress HTTP API', function () {
+    // The point of SG-104179: a curl transport would bypass pre_http_request and the local guard.
+    $wordPress = fakeWordPress();
+    $wordPress->absPath = sys_get_temp_dir().'/';
+    $wordPress->remotePostResponses['https://monitoring.mindtwo.com/api/monitoring'] = ['status' => 202, 'body' => '', 'error' => null];
+
+    $result = MonitorFactory::make($wordPress)->push();
+
+    expect($result->success)->toBeTrue()
+        ->and($wordPress->remotePostRequests)->toHaveCount(1)
+        ->and($wordPress->remotePostRequests[0]['url'])->toBe('https://monitoring.mindtwo.com/api/monitoring');
+});
