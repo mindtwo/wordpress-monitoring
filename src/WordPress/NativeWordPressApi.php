@@ -239,7 +239,6 @@ final class NativeWordPressApi implements WordPressApi
             'timeout' => $timeoutSeconds,
             'redirection' => 0,
             'sslverify' => true,
-            'data_format' => 'body',
         ]);
 
         if (is_wp_error($response)) {

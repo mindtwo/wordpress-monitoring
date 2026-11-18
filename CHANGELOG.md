@@ -9,7 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Snapshots are pushed through the WordPress HTTP API (`wp_remote_post`) instead of base-monitoring's curl transport. The request now passes `pre_http_request` like every other outgoing request, so a must-use plugin that blocks requests on local copies (the project template's `local-guard.php`) also stops a pulled production database from reporting to the live target. Signing, TLS verification and "no redirects" are unchanged.
+- Snapshots are pushed through the WordPress HTTP API (`wp_remote_post`) instead of base-monitoring's curl transport. The request now passes `pre_http_request` like every other outgoing request, so a must-use plugin that blocks requests on local copies (the project template's `local-guard.php`) also stops a pulled production database from reporting to the live target. Signing and "no redirects" are unchanged; TLS stays on, verified against WordPress' CA bundle.
+- **Check before updating:** site-wide HTTP policies now apply to the push. A site with `WP_HTTP_BLOCK_EXTERNAL` must list the monitoring host in `WP_ACCESSIBLE_HOSTS`, and plugins filtering `pre_http_request`, `http_request_args` or `https_ssl_verify` can block or change the request.
 
 ## 1.2.0 - 2026-11-18
 
