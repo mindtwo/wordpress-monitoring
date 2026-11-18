@@ -114,9 +114,10 @@ settings, but switches a switch such as `MONITORING_ENABLED` off. Every setting 
 | `route_enabled` / `MONITORING_ROUTE_ENABLED` | `true` | Expose the pull endpoint |
 | `schedule_enabled` / `MONITORING_SCHEDULE_ENABLED` | `true` | WP-Cron push |
 | `MONITORING_SCHEDULE_RECURRENCE` | `daily` | Any registered cron recurrence |
-| `MONITORING_ROUTE_CACHE` | `300` | Pull snapshot cache seconds (`0` disables) |
-| `MONITORING_RATE_LIMIT` | `10` | Pull requests per minute per IP |
+| `MONITORING_CACHE_SECONDS` | `300` | Pull snapshot cache seconds (`0` disables) |
+| `MONITORING_RATE_LIMIT_PER_MINUTE` | `10` | Pull requests per minute per IP |
 | `MONITORING_SIGNATURE_TOLERANCE` | `300` | Signature timestamp window (seconds) |
+| `MONITORING_TIMEOUT` | `15` | HTTP timeout of the push (seconds) |
 | `MONITORING_PROJECT_ROOT` | auto | Where composer.lock & git live. Auto-detection checks ABSPATH and up to two parent directories; the nearest `composer.lock` wins, otherwise the nearest `composer.json` (covers Bedrock and `johnpbloch/wordpress` layouts) |
 | `MONITORING_SELF_UPDATE` | `true` | Update checks against GitHub releases (ZIP installs only) |
 

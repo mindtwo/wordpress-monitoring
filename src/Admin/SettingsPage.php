@@ -63,7 +63,11 @@ final class SettingsPage
 
         foreach (self::SWITCH_FIELDS as $key) {
             // Locked checkboxes are rendered disabled and never submitted; keep what is stored.
-            $saved[$key] = $locks[$key] !== null ? (bool) ($current[$key] ?? true) : isset($input[$key]);
+            // Otherwise read the value, not just its presence: on the first save add_option()
+            // runs this callback again on the sanitized array, where an unchecked box is false.
+            $saved[$key] = $locks[$key] !== null
+                ? (bool) ($current[$key] ?? true)
+                : ! empty($input[$key]);
         }
 
         foreach (self::TEXT_FIELDS as $key) {

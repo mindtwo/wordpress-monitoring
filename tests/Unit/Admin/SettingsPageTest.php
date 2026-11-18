@@ -108,3 +108,17 @@ test('unlocked fields render the stored values as before', function () {
         ->and(field($html, 'm2-enabled'))->toContain('checked')
         ->and($html)->not->toContain('db-secret');
 });
+
+test('sanitizing an already sanitized value keeps unchecked boxes off', function () {
+    // On the very first save add_option() runs the sanitize callback a second
+    // time, on the sanitized array, where unchecked boxes are false.
+    $page = new SettingsPage(new FakeWordPressApi);
+
+    $once = $page->sanitize(['enabled' => '1', 'project_key' => 'prj_test']);
+    $twice = $page->sanitize($once);
+
+    expect($twice['route_enabled'])->toBeFalse()
+        ->and($twice['schedule_enabled'])->toBeFalse()
+        ->and($twice['enabled'])->toBeTrue()
+        ->and($twice)->toBe($once);
+});
