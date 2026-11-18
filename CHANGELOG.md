@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- `MONITORING_*` constants and environment variables now win over values saved under Settings → Monitoring (before: the backend won). A key or secret saved in the backend travelled along with every database copy, so a local copy of a live site reported to the live target. The settings screen shows overridden fields read-only, and saving it removes their values from the database.
+
 ### Fixed
 
 - Projects with `johnpbloch/wordpress` report their Composer packages and the Composer audit again without `MONITORING_PROJECT_ROOT`. The project root detection took the core's own `composer.json` in `public/wp/` and found no `composer.lock` there; it now prefers the nearest directory with a `composer.lock` and only falls back to the nearest `composer.json` when no lock exists. `MONITORING_PROJECT_ROOT` still wins.

@@ -10,10 +10,11 @@ use Mindtwo\Monitoring\Transport\HttpTransport;
 use Mindtwo\Monitoring\WordPress\WordPress\WordPressApi;
 
 /**
- * Configuration with the spec-mandated priority chain:
- * WordPress backend (options) → constants / environment variables → secure
- * defaults. Settings live in one option array; every key can alternatively be
- * provided as a MONITORING_* constant (wp-config.php) or environment variable.
+ * Configuration with the priority chain MONITORING_* constant (wp-config.php)
+ * → environment variable → WordPress backend (options) → secure defaults.
+ * Settings live in one option array. Constants and environment variables win
+ * because they keep secrets out of the database: a backend value would travel
+ * along with every database copy, local ones included.
  */
 final class WordPressConfigurationRepository implements ConfigurationRepository
 {
@@ -124,19 +125,45 @@ final class WordPressConfigurationRepository implements ConfigurationRepository
     }
 
     /**
-     * Backend option first, then constant, then environment variable. Empty
-     * strings count as "not configured" so a blank admin field falls through.
+     * The constant or environment variable that overrides a backend setting,
+     * or null when the backend value applies. The settings screen locks such
+     * fields.
+     */
+    public function lockedBy(string $key, ?string $constantName = null): ?string
+    {
+        $constantName ??= 'MONITORING_'.strtoupper($key);
+
+        return $this->external($constantName) !== null ? $constantName : null;
+    }
+
+    /**
+     * Constant first, then environment variable, then backend option. Empty
+     * strings count as "not configured" so a blank value falls through.
      *
      * @return mixed
      */
     private function value(string $optionKey, string $constantName)
     {
+        $external = $this->external($constantName);
+
+        if ($external !== null) {
+            return $external;
+        }
+
         $options = $this->wordPress->option(self::OPTION, []);
 
         if (is_array($options) && isset($options[$optionKey]) && $options[$optionKey] !== '') {
             return $options[$optionKey];
         }
 
+        return self::DEFAULTS[$optionKey] ?? null;
+    }
+
+    /**
+     * @return mixed the constant, else the environment variable, else null
+     */
+    private function external(string $constantName)
+    {
         $constant = $this->wordPress->constant($constantName);
 
         if ($constant !== null && $constant !== '') {
@@ -145,11 +172,7 @@ final class WordPressConfigurationRepository implements ConfigurationRepository
 
         $env = $this->wordPress->env($constantName);
 
-        if ($env !== null) {
-            return $env;
-        }
-
-        return self::DEFAULTS[$optionKey] ?? null;
+        return $env !== null && $env !== '' ? $env : null;
     }
 
     private function boolean(string $optionKey, string $constantName): bool

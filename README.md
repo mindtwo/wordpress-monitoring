@@ -16,8 +16,8 @@ and git status — this plugin adds:
 - **Push** — a WP-Cron scheduled push of signed snapshots to the central endpoint.
 - **Pull** — a signed `GET /api/app-monitoring` endpoint with rate limiting, optional IP
   allow-listing and transient-cached snapshots.
-- **Settings screen** — Settings → Monitoring, with the spec'd priority chain:
-  admin backend → `MONITORING_*` constants/environment variables → secure defaults.
+- **Settings screen** — Settings → Monitoring. Priority chain: `MONITORING_*` constants →
+  environment variables → admin backend → secure defaults.
 
 ## Installation
 
@@ -98,8 +98,9 @@ define('MONITORING_PROJECT_KEY', 'prj_live_8f3a…');
 define('MONITORING_SECRET', getenv('MONITORING_SECRET'));
 ```
 
-Alternatively use the **Settings → Monitoring** screen. Backend values win over constants;
-blank backend fields fall through. Every setting is overridable:
+Alternatively use the **Settings → Monitoring** screen. Constants and environment variables win
+over backend values; the screen shows such fields read-only, and saving the screen removes the
+overridden values from the database so a database copy carries no key or secret. Every setting is overridable:
 
 | Key (option / constant) | Default | Purpose |
 | --- | --- | --- |

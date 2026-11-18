@@ -37,21 +37,56 @@ test('environment variables are used when no option or constant exists', functio
         ->and($credentials->secret)->toBe('secret_from_env');
 });
 
-test('options beat constants beat environment variables', function () {
+test('constants beat environment variables beat backend options', function () {
+    // Secrets belong in wp-config/.env; a value saved in the backend must not
+    // override them, and must not travel along with a database copy.
     $wordPress = new FakeWordPressApi;
     $wordPress->options['mindtwo_monitoring_settings'] = ['endpoint' => 'https://from-option.example'];
     $wordPress->constants['MONITORING_ENDPOINT'] = 'https://from-constant.example';
     $wordPress->envs['MONITORING_ENDPOINT'] = 'https://from-env.example';
-
-    expect((new WordPressConfigurationRepository($wordPress))->endpoint())->toBe('https://from-option.example');
-
-    unset($wordPress->options['mindtwo_monitoring_settings']);
 
     expect((new WordPressConfigurationRepository($wordPress))->endpoint())->toBe('https://from-constant.example');
 
     $wordPress->constants = [];
 
     expect((new WordPressConfigurationRepository($wordPress))->endpoint())->toBe('https://from-env.example');
+
+    $wordPress->envs = [];
+
+    expect((new WordPressConfigurationRepository($wordPress))->endpoint())->toBe('https://from-option.example');
+});
+
+test('a constant project key wins over a key saved in the backend', function () {
+    $wordPress = fakeWordPress();
+    $wordPress->constants['MONITORING_PROJECT_KEY'] = 'prj_live';
+    $wordPress->constants['MONITORING_SECRET'] = 'live-secret';
+
+    $credentials = (new WordPressConfigurationRepository($wordPress))->credentials();
+
+    expect($credentials->projectKey)->toBe('prj_live')
+        ->and($credentials->secret)->toBe('live-secret');
+});
+
+test('a constant boolean wins over the backend switch', function () {
+    $wordPress = new FakeWordPressApi;
+    $wordPress->options['mindtwo_monitoring_settings'] = ['enabled' => true];
+    $wordPress->constants['MONITORING_ENABLED'] = false;
+
+    expect((new WordPressConfigurationRepository($wordPress))->enabled())->toBeFalse();
+});
+
+test('lockedBy names the constant or environment variable that overrides a setting', function () {
+    $wordPress = new FakeWordPressApi;
+    $wordPress->constants['MONITORING_PROJECT_KEY'] = 'prj_live';
+    $wordPress->envs['MONITORING_SECRET'] = 'live-secret';
+    $wordPress->constants['MONITORING_ENDPOINT'] = '';
+
+    $repository = new WordPressConfigurationRepository($wordPress);
+
+    expect($repository->lockedBy('project_key'))->toBe('MONITORING_PROJECT_KEY')
+        ->and($repository->lockedBy('secret'))->toBe('MONITORING_SECRET')
+        ->and($repository->lockedBy('endpoint'))->toBeNull()
+        ->and($repository->lockedBy('enabled'))->toBeNull();
 });
 
 test('secure defaults apply when nothing is configured', function () {
