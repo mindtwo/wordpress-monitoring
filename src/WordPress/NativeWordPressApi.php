@@ -136,9 +136,14 @@ final class NativeWordPressApi implements WordPressApi
 
     public function env(string $name): ?string
     {
-        $value = $_ENV[$name] ?? $_SERVER[$name] ?? getenv($name);
+        // The first non-empty source wins; an empty $_ENV entry must not hide getenv().
+        foreach ([$_ENV[$name] ?? null, $_SERVER[$name] ?? null, getenv($name)] as $value) {
+            if (is_string($value) && $value !== '') {
+                return $value;
+            }
+        }
 
-        return is_string($value) && $value !== '' ? $value : null;
+        return null;
     }
 
     public function transient(string $name)

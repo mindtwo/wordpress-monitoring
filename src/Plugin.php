@@ -39,9 +39,14 @@ final class Plugin
             self::registerUpdater(new GitHubReleaseUpdater($wordPress, plugin_basename($pluginFile)));
         }
 
-        add_action('init', static function () use ($scheduler): void {
+        add_action('init', static function () use ($scheduler, $config): void {
             add_rewrite_rule('^'.self::ROUTE.'/?$', 'index.php?'.self::QUERY_VAR.'=1', 'top');
             $scheduler->sync();
+
+            // Keys and secrets saved in the backend before constants won still sit in
+            // the database and travel with every copy of it. Removes only exact copies of
+            // a wp-config constant and writes only then, i.e. once per site after the update.
+            $config->purgeOverriddenValues();
         });
 
         add_filter('query_vars', static function (array $vars): array {

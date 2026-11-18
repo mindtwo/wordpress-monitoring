@@ -10,10 +10,11 @@ use Mindtwo\Monitoring\Transport\HttpTransport;
 use Mindtwo\Monitoring\WordPress\WordPress\WordPressApi;
 
 /**
- * Configuration with the spec-mandated priority chain:
- * WordPress backend (options) → constants / environment variables → secure
- * defaults. Settings live in one option array; every key can alternatively be
- * provided as a MONITORING_* constant (wp-config.php) or environment variable.
+ * Configuration with the priority chain MONITORING_* constant (wp-config.php)
+ * → environment variable → WordPress backend (options) → secure defaults.
+ * Settings live in one option array. Constants and environment variables win
+ * because they keep secrets out of the database: a backend value would travel
+ * along with every database copy, local ones included.
  */
 final class WordPressConfigurationRepository implements ConfigurationRepository
 {
@@ -36,6 +37,12 @@ final class WordPressConfigurationRepository implements ConfigurationRepository
         'project_root' => '',
         'self_update' => true,
     ];
+
+    /** On/off settings: for these a false constant is a real value. */
+    public const SWITCHES = ['enabled', 'route_enabled', 'schedule_enabled', 'self_update'];
+
+    /** Text settings of the settings screen; a stored copy of their wp-config constant is removed. */
+    public const TEXT_SETTINGS = ['project_key', 'secret', 'endpoint', 'ip_allow_list'];
 
     public function __construct(private WordPressApi $wordPress) {}
 
@@ -86,8 +93,7 @@ final class WordPressConfigurationRepository implements ConfigurationRepository
      */
     public function get(string $key, $default = null)
     {
-        $constant = 'MONITORING_'.strtoupper($key);
-        $value = $this->value($key, $constant);
+        $value = $this->value($key, self::constantName($key));
 
         return $value !== null && $value !== '' ? $value : ($default ?? self::DEFAULTS[$key] ?? null);
     }
@@ -124,32 +130,123 @@ final class WordPressConfigurationRepository implements ConfigurationRepository
     }
 
     /**
-     * Backend option first, then constant, then environment variable. Empty
-     * strings count as "not configured" so a blank admin field falls through.
+     * The constant or environment variable that overrides a backend setting
+     * (MONITORING_ plus the upper-cased key), or null when the backend value
+     * applies. The settings screen locks such fields.
+     */
+    public function lockedBy(string $key): ?string
+    {
+        $constantName = self::constantName($key);
+
+        return $this->external($constantName, in_array($key, self::SWITCHES, true)) !== null ? $constantName : null;
+    }
+
+    /**
+     * A switch as it is in effect, constants and environment variables applied.
+     */
+    public function flag(string $key): bool
+    {
+        return $this->boolean($key, self::constantName($key));
+    }
+
+    /**
+     * Whether a stored text value is a mere copy of a wp-config constant and
+     * can be removed without losing anything. Only constants count: they are
+     * defined in every context, whereas an environment variable set by the web
+     * server is missing in CLI cron, which then still needs the stored value.
+     * A stored value that differs from the constant is kept for a person to
+     * decide on (stale constant, network-wide constant with per-site keys).
+     *
+     * @param  mixed  $stored
+     */
+    public function isRedundant(string $key, $stored): bool
+    {
+        if (! in_array($key, self::TEXT_SETTINGS, true) || ! is_string($stored) || trim($stored) === '') {
+            return false;
+        }
+
+        $constant = $this->wordPress->constant(self::constantName($key));
+
+        return is_string($constant) && trim($constant) !== '' && trim($constant) === trim($stored);
+    }
+
+    /**
+     * Empties stored keys, secrets and other text settings that are identical
+     * to the wp-config constant overriding them, so the database (and every
+     * copy of it) no longer carries them. Returns whether anything was removed.
+     */
+    public function purgeOverriddenValues(): bool
+    {
+        $options = $this->wordPress->option(self::OPTION, []);
+
+        if (! is_array($options)) {
+            return false;
+        }
+
+        $changed = false;
+
+        foreach (self::TEXT_SETTINGS as $key) {
+            if ($this->isRedundant($key, $options[$key] ?? '')) {
+                $options[$key] = '';
+                $changed = true;
+            }
+        }
+
+        if ($changed) {
+            $this->wordPress->updateOption(self::OPTION, $options);
+        }
+
+        return $changed;
+    }
+
+    private static function constantName(string $key): string
+    {
+        return 'MONITORING_'.strtoupper($key);
+    }
+
+    /**
+     * Constant first, then environment variable, then backend option. Empty
+     * strings count as "not configured" so a blank value falls through.
      *
      * @return mixed
      */
     private function value(string $optionKey, string $constantName)
     {
+        $external = $this->external($constantName, in_array($optionKey, self::SWITCHES, true));
+
+        if ($external !== null) {
+            return $external;
+        }
+
         $options = $this->wordPress->option(self::OPTION, []);
 
         if (is_array($options) && isset($options[$optionKey]) && $options[$optionKey] !== '') {
             return $options[$optionKey];
         }
 
+        return self::DEFAULTS[$optionKey] ?? null;
+    }
+
+    /**
+     * The constant, else the environment variable, else null. For anything but
+     * a switch a false or empty-array constant counts as unset: define('X',
+     * getenv('X')) yields false when the variable is missing (and
+     * array_filter(explode(...)) an empty array), and must not override a
+     * stored value. For switches false is a real value (MONITORING_ENABLED = false).
+     *
+     * @return mixed
+     */
+    private function external(string $constantName, bool $switch)
+    {
         $constant = $this->wordPress->constant($constantName);
 
-        if ($constant !== null && $constant !== '') {
+        if ($constant !== null && $constant !== '' && ($switch || ($constant !== false && $constant !== []))) {
             return $constant;
         }
 
         $env = $this->wordPress->env($constantName);
 
-        if ($env !== null) {
-            return $env;
-        }
-
-        return self::DEFAULTS[$optionKey] ?? null;
+        return $env !== null && $env !== '' ? $env : null;
     }
 
     private function boolean(string $optionKey, string $constantName): bool

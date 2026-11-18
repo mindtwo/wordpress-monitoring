@@ -16,8 +16,8 @@ and git status — this plugin adds:
 - **Push** — a WP-Cron scheduled push of signed snapshots to the central endpoint.
 - **Pull** — a signed `GET /api/app-monitoring` endpoint with rate limiting, optional IP
   allow-listing and transient-cached snapshots.
-- **Settings screen** — Settings → Monitoring, with the spec'd priority chain:
-  admin backend → `MONITORING_*` constants/environment variables → secure defaults.
+- **Settings screen** — Settings → Monitoring. Priority chain: `MONITORING_*` constants →
+  environment variables → admin backend → secure defaults.
 
 ## Installation
 
@@ -29,7 +29,9 @@ For sites that are not versioned and have no Composer setup. Every
 auto-generated "Source code (zip)" lacks `vendor/` and leaves the plugin silently inactive.
 
 1. **Plugins → Add New → Upload Plugin**, choose the ZIP, install and activate.
-2. **Settings → Monitoring**: enter project key and secret from the dashboard.
+2. Add project key and secret from the dashboard as `MONITORING_PROJECT_KEY` and
+   `MONITORING_SECRET` constants in `wp-config.php` (see [Configuration](#configuration)), so they
+   stay out of the database. **Settings → Monitoring** works too, but stores them in the database.
 3. Low-traffic site? WP-Cron only runs on visits — either configure a
    [real cron](https://developer.wordpress.org/plugins/cron/hooking-wp-cron-into-the-system-task-scheduler/)
    or let the dashboard pull.
@@ -95,11 +97,20 @@ the database:
 
 ```php
 define('MONITORING_PROJECT_KEY', 'prj_live_8f3a…');
-define('MONITORING_SECRET', getenv('MONITORING_SECRET'));
+define('MONITORING_SECRET', getenv('MONITORING_SECRET') ?: '');
 ```
 
-Alternatively use the **Settings → Monitoring** screen. Backend values win over constants;
-blank backend fields fall through. Every setting is overridable:
+Alternatively use the **Settings → Monitoring** screen. Constants and environment variables win
+over backend values; the screen shows such fields read-only, and the plugin removes stored keys,
+secrets and other text values that are identical to the overriding wp-config constant, so a database
+copy carries no duplicate of them. Differing values and values overridden only by an environment
+variable stay stored. A `false` constant (e.g. from `getenv()` of a missing variable) or an empty array counts as
+unset for every setting except the switches (`MONITORING_ENABLED`, `MONITORING_ROUTE_ENABLED`,
+`MONITORING_SCHEDULE_ENABLED`, `MONITORING_SELF_UPDATE`); for those `false` switches off.
+
+To mute a copy of a site (e.g. a local install with a pulled production database), set
+`MONITORING_ENABLED=false`. Empty values do not override anything, so `MONITORING_PROJECT_KEY=`
+alone still leaves the key from the copied database in effect. Every setting is overridable:
 
 | Key (option / constant) | Default | Purpose |
 | --- | --- | --- |
@@ -111,9 +122,10 @@ blank backend fields fall through. Every setting is overridable:
 | `route_enabled` / `MONITORING_ROUTE_ENABLED` | `true` | Expose the pull endpoint |
 | `schedule_enabled` / `MONITORING_SCHEDULE_ENABLED` | `true` | WP-Cron push |
 | `MONITORING_SCHEDULE_RECURRENCE` | `daily` | Any registered cron recurrence |
-| `MONITORING_ROUTE_CACHE` | `300` | Pull snapshot cache seconds (`0` disables) |
-| `MONITORING_RATE_LIMIT` | `10` | Pull requests per minute per IP |
+| `MONITORING_CACHE_SECONDS` | `300` | Pull snapshot cache seconds (`0` disables) |
+| `MONITORING_RATE_LIMIT_PER_MINUTE` | `10` | Pull requests per minute per IP |
 | `MONITORING_SIGNATURE_TOLERANCE` | `300` | Signature timestamp window (seconds) |
+| `MONITORING_TIMEOUT` | `15` | HTTP timeout of the push (seconds) |
 | `MONITORING_PROJECT_ROOT` | auto | Where composer.lock & git live. Auto-detection checks ABSPATH and up to two parent directories; the nearest `composer.lock` wins, otherwise the nearest `composer.json` (covers Bedrock and `johnpbloch/wordpress` layouts) |
 | `MONITORING_SELF_UPDATE` | `true` | Update checks against GitHub releases (ZIP installs only) |
 
