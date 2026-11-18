@@ -47,3 +47,64 @@ test('unlocked fields are saved as before', function () {
         ->and($saved['endpoint'])->toBe('https://example.test/api')
         ->and($saved['enabled'])->toBeTrue();
 });
+
+function renderSettings(FakeWordPressApi $wordPress): string
+{
+    require_once __DIR__.'/../../Support/render-functions.php';
+
+    ob_start();
+    (new SettingsPage($wordPress))->render();
+
+    return (string) ob_get_clean();
+}
+
+function field(string $html, string $id): string
+{
+    preg_match('/<input[^>]*id="'.$id.'"[^>]*>/', $html, $match);
+
+    return $match[0] ?? '';
+}
+
+test('fields overridden by a constant render disabled, empty and named', function () {
+    $wordPress = new FakeWordPressApi;
+    $wordPress->options['mindtwo_monitoring_settings'] = ['project_key' => 'prj_db', 'secret' => 'db-secret', 'endpoint' => 'https://db.example'];
+    $wordPress->constants['MONITORING_PROJECT_KEY'] = 'prj_live';
+    $wordPress->constants['MONITORING_SECRET'] = 'live-secret';
+    $wordPress->envs['MONITORING_ENDPOINT'] = 'https://env.example';
+
+    $html = renderSettings($wordPress);
+
+    expect(field($html, 'm2-project-key'))->toContain(' disabled')->toContain('value=""')
+        ->and(field($html, 'm2-secret'))->toContain(' disabled')->toContain('placeholder=""')
+        ->and(field($html, 'm2-endpoint'))->toContain(' disabled')->toContain('placeholder=""')
+        ->and($html)->toContain('Set by <code>MONITORING_SECRET</code>')
+        ->and($html)->toContain('Set by <code>MONITORING_ENDPOINT</code>')
+        ->and($html)->not->toContain('prj_db')
+        ->and($html)->not->toContain('prj_live')
+        ->and($html)->not->toContain('db-secret')
+        ->and($html)->not->toContain('live-secret')
+        ->and($html)->not->toContain('env.example');
+});
+
+test('a locked switch shows the value in effect', function () {
+    $wordPress = new FakeWordPressApi;
+    $wordPress->options['mindtwo_monitoring_settings'] = ['enabled' => true];
+    $wordPress->constants['MONITORING_ENABLED'] = false;
+
+    $enabled = field(renderSettings($wordPress), 'm2-enabled');
+
+    expect($enabled)->toContain(' disabled')
+        ->and($enabled)->not->toContain('checked');
+});
+
+test('unlocked fields render the stored values as before', function () {
+    $wordPress = new FakeWordPressApi;
+    $wordPress->options['mindtwo_monitoring_settings'] = ['project_key' => 'prj_db', 'secret' => 'db-secret', 'enabled' => true];
+
+    $html = renderSettings($wordPress);
+
+    expect(field($html, 'm2-project-key'))->toContain('value="prj_db"')->not->toContain('disabled')
+        ->and(field($html, 'm2-secret'))->toContain('placeholder="••••••••"')
+        ->and(field($html, 'm2-enabled'))->toContain('checked')
+        ->and($html)->not->toContain('db-secret');
+});

@@ -9,7 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- `MONITORING_*` constants and environment variables now win over values saved under Settings → Monitoring (before: the backend won). A key or secret saved in the backend travelled along with every database copy, so a local copy of a live site reported to the live target. The settings screen shows overridden fields read-only, and saving it removes their values from the database.
+- `MONITORING_*` constants and environment variables now win over values saved under Settings → Monitoring (before: the backend won). A key or secret saved in the backend travelled along with every database copy, so a local copy of a live site reported to the live target. The settings screen shows overridden fields read-only and the value in effect for switches. On the first request after the update the plugin removes stored keys, secrets and other text values that a constant or environment variable overrides.
+- **Check before updating:** where a site has both a constant (or a variable set by the hosting) and a different backend value, the constant now wins. This concerns e.g. multisite networks with one network-wide constant and per-site keys. ZIP installs update themselves, so check such sites first.
+- A `false` constant counts as unset for text settings, so `define('MONITORING_SECRET', getenv('MONITORING_SECRET'))` without the variable keeps the stored secret. For switches `false` still switches off.
 
 ### Fixed
 

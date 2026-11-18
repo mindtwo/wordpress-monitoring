@@ -38,6 +38,12 @@ final class WordPressConfigurationRepository implements ConfigurationRepository
         'self_update' => true,
     ];
 
+    /** On/off settings: for these a false constant is a real value. */
+    private const SWITCHES = ['enabled', 'route_enabled', 'schedule_enabled', 'self_update'];
+
+    /** Stored text settings that are removed once a constant overrides them. */
+    private const PURGEABLE = ['project_key', 'secret', 'endpoint', 'ip_allow_list'];
+
     public function __construct(private WordPressApi $wordPress) {}
 
     public function credentials(): Credentials
@@ -125,15 +131,57 @@ final class WordPressConfigurationRepository implements ConfigurationRepository
     }
 
     /**
-     * The constant or environment variable that overrides a backend setting,
-     * or null when the backend value applies. The settings screen locks such
-     * fields.
+     * The constant or environment variable that overrides a backend setting
+     * (MONITORING_ plus the upper-cased key), or null when the backend value
+     * applies. The settings screen locks such fields.
      */
-    public function lockedBy(string $key, ?string $constantName = null): ?string
+    public function lockedBy(string $key): ?string
     {
-        $constantName ??= 'MONITORING_'.strtoupper($key);
+        $constantName = self::constantName($key);
 
-        return $this->external($constantName) !== null ? $constantName : null;
+        return $this->external($constantName, in_array($key, self::SWITCHES, true)) !== null ? $constantName : null;
+    }
+
+    /**
+     * A switch as it is in effect, constants and environment variables applied.
+     */
+    public function flag(string $key): bool
+    {
+        return $this->boolean($key, self::constantName($key));
+    }
+
+    /**
+     * Empties stored keys, secrets and other text settings that a constant or
+     * environment variable overrides, so the database (and every copy of it)
+     * no longer carries them. Returns whether anything was removed.
+     */
+    public function purgeOverriddenValues(): bool
+    {
+        $options = $this->wordPress->option(self::OPTION, []);
+
+        if (! is_array($options)) {
+            return false;
+        }
+
+        $changed = false;
+
+        foreach (self::PURGEABLE as $key) {
+            if (($options[$key] ?? '') !== '' && $this->lockedBy($key) !== null) {
+                $options[$key] = '';
+                $changed = true;
+            }
+        }
+
+        if ($changed) {
+            $this->wordPress->updateOption(self::OPTION, $options);
+        }
+
+        return $changed;
+    }
+
+    private static function constantName(string $key): string
+    {
+        return 'MONITORING_'.strtoupper($key);
     }
 
     /**
@@ -144,7 +192,7 @@ final class WordPressConfigurationRepository implements ConfigurationRepository
      */
     private function value(string $optionKey, string $constantName)
     {
-        $external = $this->external($constantName);
+        $external = $this->external($constantName, in_array($optionKey, self::SWITCHES, true));
 
         if ($external !== null) {
             return $external;
@@ -160,13 +208,18 @@ final class WordPressConfigurationRepository implements ConfigurationRepository
     }
 
     /**
-     * @return mixed the constant, else the environment variable, else null
+     * The constant, else the environment variable, else null. For anything but
+     * a switch a false constant counts as unset: define('X', getenv('X'))
+     * yields false when the variable is missing, and must not wipe a stored
+     * key. For switches false is a real value (MONITORING_ENABLED = false).
+     *
+     * @return mixed
      */
-    private function external(string $constantName)
+    private function external(string $constantName, bool $switch)
     {
         $constant = $this->wordPress->constant($constantName);
 
-        if ($constant !== null && $constant !== '') {
+        if ($constant !== null && $constant !== '' && ($switch || $constant !== false)) {
             return $constant;
         }
 

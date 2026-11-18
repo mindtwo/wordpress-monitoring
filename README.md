@@ -95,12 +95,14 @@ the database:
 
 ```php
 define('MONITORING_PROJECT_KEY', 'prj_live_8f3a…');
-define('MONITORING_SECRET', getenv('MONITORING_SECRET'));
+define('MONITORING_SECRET', getenv('MONITORING_SECRET') ?: '');
 ```
 
 Alternatively use the **Settings → Monitoring** screen. Constants and environment variables win
-over backend values; the screen shows such fields read-only, and saving the screen removes the
-overridden values from the database so a database copy carries no key or secret. Every setting is overridable:
+over backend values; the screen shows such fields read-only, and the plugin removes stored keys,
+secrets and other text values they override from the database, so a database copy carries none of
+them. A `false` constant (e.g. from `getenv()` of a missing variable) counts as unset for text
+settings, but switches a switch such as `MONITORING_ENABLED` off. Every setting is overridable:
 
 | Key (option / constant) | Default | Purpose |
 | --- | --- | --- |

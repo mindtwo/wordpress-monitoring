@@ -5,7 +5,7 @@ declare(strict_types=1);
 use Mindtwo\Monitoring\WordPress\Support\WordPressConfigurationRepository;
 use Mindtwo\Monitoring\WordPress\Tests\Fakes\FakeWordPressApi;
 
-test('backend options are the primary source', function () {
+test('backend options apply when no constant or environment variable is set', function () {
     $repository = new WordPressConfigurationRepository(fakeWordPress());
     $credentials = $repository->credentials();
 
@@ -14,7 +14,7 @@ test('backend options are the primary source', function () {
         ->and($credentials->isComplete())->toBeTrue();
 });
 
-test('constants are used when the backend value is blank', function () {
+test('constants override a blank backend value', function () {
     $wordPress = new FakeWordPressApi;
     $wordPress->options['mindtwo_monitoring_settings'] = ['project_key' => ''];
     $wordPress->constants['MONITORING_PROJECT_KEY'] = 'prj_from_constant';
@@ -152,4 +152,85 @@ test('self-update stays available while data collection is disabled', function (
     $wordPress->constants['MONITORING_ENABLED'] = false;
 
     expect((new WordPressConfigurationRepository($wordPress))->selfUpdateEnabled())->toBeTrue();
+});
+
+test('a false constant does not override a text setting', function () {
+    // define('MONITORING_SECRET', getenv('MONITORING_SECRET')) yields false when the variable is unset.
+    $wordPress = fakeWordPress();
+    $wordPress->constants['MONITORING_PROJECT_KEY'] = false;
+    $wordPress->constants['MONITORING_SECRET'] = false;
+
+    $repository = new WordPressConfigurationRepository($wordPress);
+
+    expect($repository->credentials()->projectKey)->toBe('prj_test')
+        ->and($repository->credentials()->secret)->toBe('test-secret')
+        ->and($repository->lockedBy('project_key'))->toBeNull()
+        ->and($repository->lockedBy('secret'))->toBeNull();
+});
+
+test('a false constant still switches a setting off', function () {
+    $wordPress = fakeWordPress();
+    $wordPress->options['mindtwo_monitoring_settings']['enabled'] = true;
+    $wordPress->constants['MONITORING_ENABLED'] = false;
+
+    $repository = new WordPressConfigurationRepository($wordPress);
+
+    expect($repository->enabled())->toBeFalse()
+        ->and($repository->lockedBy('enabled'))->toBe('MONITORING_ENABLED');
+});
+
+test('an environment variable locks a setting like a constant', function () {
+    $wordPress = fakeWordPress();
+    $wordPress->envs['MONITORING_ENDPOINT'] = 'https://from-env.example';
+
+    $repository = new WordPressConfigurationRepository($wordPress);
+
+    expect($repository->endpoint())->toBe('https://from-env.example')
+        ->and($repository->lockedBy('endpoint'))->toBe('MONITORING_ENDPOINT');
+});
+
+test('an empty environment variable falls through to the backend', function () {
+    $wordPress = fakeWordPress();
+    $wordPress->envs['MONITORING_PROJECT_KEY'] = '';
+
+    $repository = new WordPressConfigurationRepository($wordPress);
+
+    expect($repository->credentials()->projectKey)->toBe('prj_test')
+        ->and($repository->lockedBy('project_key'))->toBeNull();
+});
+
+test('flag reports the switch value in effect', function () {
+    $wordPress = fakeWordPress();
+    $wordPress->options['mindtwo_monitoring_settings']['enabled'] = true;
+    $wordPress->constants['MONITORING_ENABLED'] = 'false';
+
+    expect((new WordPressConfigurationRepository($wordPress))->flag('enabled'))->toBeFalse();
+});
+
+test('overridden keys and secrets are removed from the stored settings', function () {
+    $wordPress = fakeWordPress();
+    $wordPress->options['mindtwo_monitoring_settings']['endpoint'] = 'https://stored.example';
+    $wordPress->options['mindtwo_monitoring_settings']['enabled'] = true;
+    $wordPress->constants['MONITORING_PROJECT_KEY'] = 'prj_live';
+    $wordPress->constants['MONITORING_SECRET'] = 'live-secret';
+
+    $purged = (new WordPressConfigurationRepository($wordPress))->purgeOverriddenValues();
+
+    expect($purged)->toBeTrue()
+        ->and($wordPress->options['mindtwo_monitoring_settings'])->toBe([
+            'project_key' => '',
+            'secret' => '',
+            'endpoint' => 'https://stored.example',
+            'enabled' => true,
+        ]);
+});
+
+test('purging leaves the stored settings alone when nothing is overridden', function () {
+    $wordPress = fakeWordPress();
+    $wordPress->constants['MONITORING_SECRET'] = false;
+
+    $before = $wordPress->options['mindtwo_monitoring_settings'];
+
+    expect((new WordPressConfigurationRepository($wordPress))->purgeOverriddenValues())->toBeFalse()
+        ->and($wordPress->options['mindtwo_monitoring_settings'])->toBe($before);
 });
